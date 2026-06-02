@@ -111,6 +111,8 @@ function wrapStreamHandleUnhandledStopReason(
             if (!normalizedMessage) {
               throw err;
             }
+            // Iteration failures must still yield one terminal error event so
+            // downstream stream consumers see the same contract as `result()`.
             emittedSyntheticTerminal = true;
             return {
               done: false as const,
@@ -135,6 +137,10 @@ function wrapStreamHandleUnhandledStopReason(
   return stream;
 }
 
+/**
+ * Wraps a provider stream function so unhandled provider stop-reason errors are
+ * converted into ordinary assistant error messages instead of escaping the run.
+ */
 export function wrapStreamFnHandleSensitiveStopReason(baseFn: StreamFn): StreamFn {
   return (model, context, options) => {
     try {
