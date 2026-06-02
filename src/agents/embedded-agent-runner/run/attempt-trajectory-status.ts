@@ -6,6 +6,7 @@ import {
 /** Terminal classification written to attempt trajectory telemetry. */
 export type AttemptTrajectoryTerminalStatus = "success" | "error" | "interrupted";
 
+/** Error marker for completed attempts that produced no visible delivery or durable progress. */
 export const NON_DELIVERABLE_TERMINAL_TURN_REASON = "non_deliverable_terminal_turn";
 
 /** Final attempt status plus the specific non-deliverable error marker. */
@@ -75,6 +76,10 @@ function hasNonEmptyString(values: string[]): boolean {
   return values.some((value) => value.trim().length > 0);
 }
 
+/**
+ * Checks only committed messaging-tool receipts, not the fact that the model
+ * tried a messaging tool, so dry runs and suppressed sends stay non-deliverable.
+ */
 function hasCommittedMessagingDeliveryEvidence(
   params: Pick<
     ResolveAttemptTrajectoryTerminalParams,
@@ -88,6 +93,7 @@ function hasCommittedMessagingDeliveryEvidence(
   );
 }
 
+/** Async media generation counts as progress once the detached task was started. */
 function hasAsyncStartedToolActivity(toolMetas?: readonly { asyncStarted?: boolean }[]): boolean {
   return (toolMetas ?? []).some((entry) => entry.asyncStarted === true);
 }
