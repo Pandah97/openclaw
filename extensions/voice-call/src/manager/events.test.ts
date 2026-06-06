@@ -14,6 +14,7 @@ import { clearVoiceCallStateRuntime, setVoiceCallStateRuntime } from "../runtime
 import type { AnswerCallInput, HangupCallInput, NormalizedEvent } from "../types.js";
 import type { CallManagerContext } from "./context.js";
 import { processEvent } from "./events.js";
+import { speakInitialMessage } from "./outbound.js";
 import { flushPendingCallRecordWritesForTest } from "./store.js";
 
 const contexts: CallManagerContext[] = [];
@@ -450,6 +451,69 @@ describe("processEvent (functional)", () => {
       vi.useRealTimers();
     },
   );
+
+  it("enforces max duration for Twilio initial-message streams without answeredAt", async () => {
+    const now = new Date("2026-03-22T12:00:00.000Z").getTime();
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const hangupCalls: HangupCallInput[] = [];
+    const provider = createProvider({
+      name: "twilio",
+      hangupCall: async (input: HangupCallInput): Promise<void> => {
+        hangupCalls.push(input);
+      },
+    }) as VoiceCallProvider & { isConversationStreamConnectEnabled?: () => boolean };
+    provider.isConversationStreamConnectEnabled = () => true;
+    const ctx = createContext({
+      config: VoiceCallConfigSchema.parse({
+        enabled: true,
+        provider: "twilio",
+        fromNumber: "+15550000000",
+        maxDurationSeconds: 1,
+        streaming: { enabled: true },
+      }),
+      provider,
+    });
+    ctx.activeCalls.set("call-stream", {
+      callId: "call-stream",
+      providerCallId: "provider-stream",
+      provider: "twilio",
+      direction: "inbound",
+      state: "active",
+      from: "+15550000002",
+      to: "+15550000000",
+      startedAt: now - 120_000,
+      transcript: [],
+      processedEventIds: [],
+      metadata: {
+        initialMessage: "Hello from the bot.",
+        mode: "conversation",
+      },
+    });
+    ctx.providerCallIdMap.set("provider-stream", "call-stream");
+
+    await speakInitialMessage(ctx, "provider-stream");
+
+    const call = ctx.activeCalls.get("call-stream");
+    if (!call) {
+      throw new Error("expected initial-message call to remain active");
+    }
+    expect(call.state).toBe("speaking");
+    expect(call.answeredAt).toBe(now);
+    expect(ctx.maxDurationTimers.has("call-stream")).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(hangupCalls).toEqual([
+      {
+        callId: "call-stream",
+        providerCallId: "provider-stream",
+        reason: "timeout",
+      },
+    ]);
+    expect(ctx.activeCalls.has("call-stream")).toBe(false);
+    vi.useRealTimers();
+  });
 
   it("removes active call even when hangup rejects", () => {
     const provider = createProvider({
