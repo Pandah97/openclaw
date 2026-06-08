@@ -2,6 +2,12 @@
 
 Docs: https://docs.openclaw.ai
 
+## 2026.6.8-alpha.2
+
+### Fixes
+
+- Release validation: refresh generated alpha package metadata, align Parallel plugin version metadata, and reuse package scan ceiling stabilization so the current branch can complete alpha packaging proof.
+
 ## 2026.6.5
 
 ### Highlights
