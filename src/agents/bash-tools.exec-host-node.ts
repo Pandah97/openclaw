@@ -130,7 +130,12 @@ export async function executeNodeHostCommand(
     inlineEvalHit,
     requiresSecurityAuditSuppressionApproval,
     autoReviewArgv,
+    allowAlwaysPersistence,
   } = approvalAnalysis;
+  const allowedDecisions = resolveExecApprovalAllowedDecisions({
+    ask: hostAsk,
+    allowAlwaysPersistence,
+  });
   const requiresAsk =
     requiresExecApproval({
       ask: hostAsk,
@@ -159,6 +164,7 @@ export async function executeNodeHostCommand(
       nodeId: target.nodeId,
       security: hostSecurity,
       ask: hostAsk,
+      allowedDecisions,
       commandHighlighting: params.commandHighlighting,
       ...buildExecApprovalRequesterContext({
         agentId: prepared.agentId,
@@ -438,7 +444,7 @@ export async function executeNodeHostCommand(
           initiatingSurface,
           sentApproverDms,
           unavailableReason,
-          allowedDecisions: resolveExecApprovalAllowedDecisions({ ask: hostAsk }),
+          allowedDecisions,
           nodeId: target.nodeId,
         });
       }
