@@ -39,23 +39,22 @@ To set a provider explicitly:
 
 Without an embedding provider, only keyword search is available.
 
-To force local GGUF embeddings, install the official llama.cpp provider plugin,
-then point `local.modelPath` at a GGUF file:
-
-```bash
-openclaw plugins install @openclaw/llama-cpp-provider
-```
+For local embeddings with no API key, set `provider: "ollama"` and use an
+embedding model such as `nomic-embed-text`. For LM Studio, use
+`provider: "openai-compatible"`, set `remote.baseUrl` to the LM Studio `/v1`
+endpoint, and set `model` to the loaded embedding model. Do not use
+`provider: "local"` unless you are working from a source checkout with the
+llama.cpp provider present; the public llama.cpp provider package is
+temporarily unavailable from the public package registries.
 
 ```json5
 {
   agents: {
     defaults: {
       memorySearch: {
-        provider: "local",
+        provider: "ollama",
+        model: "nomic-embed-text",
         fallback: "none",
-        local: {
-          modelPath: "~/.node-llama-cpp/models/embeddinggemma-300m-qat-Q8_0.gguf",
-        },
       },
     },
   },
@@ -64,18 +63,18 @@ openclaw plugins install @openclaw/llama-cpp-provider
 
 ## Supported embedding providers
 
-| Provider          | ID                  | Notes                               |
-| ----------------- | ------------------- | ----------------------------------- |
-| Bedrock           | `bedrock`           | Uses AWS credential chain           |
-| DeepInfra         | `deepinfra`         | Default: `BAAI/bge-m3`              |
-| Gemini            | `gemini`            | Supports multimodal (image + audio) |
-| GitHub Copilot    | `github-copilot`    | Uses Copilot subscription           |
-| Local             | `local`             | `@openclaw/llama-cpp-provider`      |
-| Mistral           | `mistral`           |                                     |
-| Ollama            | `ollama`            | Local/self-hosted                   |
-| OpenAI            | `openai`            | Default: `text-embedding-3-small`   |
-| OpenAI-compatible | `openai-compatible` | Generic `/v1/embeddings` endpoint   |
-| Voyage            | `voyage`            |                                     |
+| Provider          | ID                  | Notes                                |
+| ----------------- | ------------------- | ------------------------------------ |
+| Bedrock           | `bedrock`           | Uses AWS credential chain            |
+| DeepInfra         | `deepinfra`         | Default: `BAAI/bge-m3`               |
+| Gemini            | `gemini`            | Supports multimodal (image + audio)  |
+| GitHub Copilot    | `github-copilot`    | Uses Copilot subscription            |
+| Local             | `local`             | Temporarily unavailable as a package |
+| Mistral           | `mistral`           |                                      |
+| Ollama            | `ollama`            | Local/self-hosted                    |
+| OpenAI            | `openai`            | Default: `text-embedding-3-small`    |
+| OpenAI-compatible | `openai-compatible` | Generic `/v1/embeddings` endpoint    |
+| Voyage            | `voyage`            |                                      |
 
 Set `memorySearch.provider` to switch away from OpenAI.
 
@@ -125,8 +124,10 @@ openclaw memory status --deep --agent main
 openclaw memory index --force --agent main
 ```
 
-Both standalone CLI commands and the Gateway use the same `local` provider id.
-Set `memorySearch.provider: "local"` when you want local embeddings.
+Both standalone CLI commands and the Gateway use the same provider id. Set
+`memorySearch.provider` to `ollama` or `openai-compatible` for packaged local
+service embeddings. Use `memorySearch.provider: "local"` only from a source
+checkout with the llama.cpp provider present.
 
 **Stale results?** Run `openclaw memory index --force` to rebuild. The watcher
 may miss changes in rare edge cases.

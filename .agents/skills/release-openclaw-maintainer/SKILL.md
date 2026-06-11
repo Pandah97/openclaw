@@ -317,6 +317,17 @@ pnpm release:check
 pnpm test:install:smoke
 ```
 
+- Before tagging, diff publishable plugin package manifests against the last
+  reachable stable/beta release tag. For every newly publishable package
+  (`openclaw.release.publishToNpm: true` or `publishToClawHub: true`) whose
+  package name did not exist in the base tag, verify the target package already
+  exists in npm/ClawHub or stop and help the owner prepare the package first.
+  Do not include a new external package in publish/install/docs/catalog
+  surfaces until its registry owner, npm scope permission, provenance path, and
+  first-package publish plan are confirmed. Useful npm probe:
+  `npm view <package-name> version dist-tags --json --prefer-online`; a 404 for
+  a package newly added to the release is a release-prep blocker, not something
+  to discover from the publish job.
 - Use `pnpm qa:otel:smoke` when release validation needs telemetry coverage.
   It starts a local OTLP/HTTP trace receiver, runs QA-lab's
   `otel-trace-smoke`, and checks span names plus content/identifier redaction

@@ -120,9 +120,12 @@ Semantic memory search uses **embedding APIs** when configured for remote provid
 - `memorySearch.provider = "deepinfra"` → DeepInfra embeddings
 - `memorySearch.provider = "lmstudio"` → LM Studio embeddings (local/self-hosted)
 - `memorySearch.provider = "ollama"` → Ollama embeddings (local/self-hosted; typically no hosted API billing)
-- Optional fallback to a remote provider if local embeddings fail
+- Optional fallback to a remote provider if local/self-hosted embeddings fail
 
-You can keep it local with `memorySearch.provider = "local"` (no API usage).
+You can keep it local with `memorySearch.provider = "ollama"` or a local
+LM Studio/OpenAI-compatible endpoint (no hosted API usage). Use
+`memorySearch.provider = "local"` only from a source checkout with the
+llama.cpp provider present.
 
 See [Memory](/concepts/memory).
 

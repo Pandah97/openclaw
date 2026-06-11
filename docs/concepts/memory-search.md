@@ -32,10 +32,12 @@ For multi-endpoint setups with memory-specific providers, `provider` can also
 be a custom `models.providers.<id>` entry, such as `ollama-5080`, when that
 provider sets `api: "ollama"` or another memory embedding adapter owner.
 
-For local embeddings with no API key, install
-`@openclaw/llama-cpp-provider` and set `provider: "local"`. Source checkouts
-may still require native build approval: `pnpm approve-builds` then
-`pnpm rebuild node-llama-cpp`.
+For local embeddings with no API key, set `memorySearch.provider` to `ollama`
+and use an embedding model such as `nomic-embed-text`, or set it to
+`openai-compatible` with LM Studio's `/v1` base URL and the loaded embedding
+model. Do not leave the provider set to `local` unless you are using the
+source-checkout-only llama.cpp provider; the public llama.cpp provider package
+is temporarily unavailable from the public package registries.
 
 Some OpenAI-compatible embedding endpoints require asymmetric labels such as
 `input_type: "query"` for searches and `input_type: "document"` or `"passage"`

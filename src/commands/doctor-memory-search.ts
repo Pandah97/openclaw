@@ -482,8 +482,9 @@ export async function noteMemorySearchHealth(
         detail ? `Gateway probe: ${detail}` : null,
         "",
         "Fix (pick one):",
-        `- Install the llama.cpp provider plugin: ${formatCliCommand("openclaw plugins install @openclaw/llama-cpp-provider")}`,
-        `- Set a local GGUF model path in config`,
+        `- Switch to Ollama embeddings: ${formatCliCommand("openclaw config set agents.defaults.memorySearch.provider ollama")} and ${formatCliCommand("openclaw config set agents.defaults.memorySearch.model nomic-embed-text")}`,
+        `- Or use LM Studio/OpenAI-compatible embeddings: ${formatCliCommand("openclaw config set agents.defaults.memorySearch.provider openai-compatible")}, ${formatCliCommand("openclaw config set agents.defaults.memorySearch.model text-embedding-nomic-embed-text-v1.5")}, and ${formatCliCommand("openclaw config set agents.defaults.memorySearch.remote.baseUrl http://127.0.0.1:1234/v1")}`,
+        `- In a source checkout with the llama.cpp provider present, set a local GGUF model path in config`,
         suggestedRemoteProvider
           ? `- Switch to a remote provider: ${formatCliCommand(`openclaw config set agents.defaults.memorySearch.provider ${suggestedRemoteProvider}`)}`
           : `- Switch to a remote embedding provider in config`,

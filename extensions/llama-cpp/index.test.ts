@@ -106,13 +106,13 @@ describe("llama.cpp provider plugin", () => {
     });
   });
 
-  it("formats missing runtime errors with the plugin install command", () => {
+  it("formats missing runtime errors with source checkout guidance", () => {
     const err = Object.assign(new Error("Cannot find package 'node-llama-cpp'"), {
       code: "ERR_MODULE_NOT_FOUND",
     });
 
     expect(formatLlamaCppSetupError(err)).toContain(
-      "openclaw plugins install @openclaw/llama-cpp-provider",
+      "Use a source checkout that includes the llama.cpp provider plugin.",
     );
   });
 });
