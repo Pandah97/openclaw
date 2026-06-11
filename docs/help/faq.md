@@ -553,8 +553,10 @@ lives on the [First-run FAQ](/help/faq-first-run).
     If no OpenAI API key is available, semantic memory search stays unavailable
     until you configure a key or choose another provider explicitly.
 
-    If you'd rather stay local, set `memorySearch.provider = "local"` (and optionally
-    `memorySearch.fallback = "none"`). If you want Gemini embeddings, set
+    If you'd rather stay local, set `memorySearch.provider = "ollama"` with
+    `memorySearch.model = "nomic-embed-text"`, or use a local LM Studio/OpenAI-compatible
+    endpoint. Use `memorySearch.provider = "local"` only from a source checkout with
+    the llama.cpp provider present. If you want Gemini embeddings, set
     `memorySearch.provider = "gemini"` and provide `GEMINI_API_KEY` (or
     `memorySearch.remote.apiKey`). We support **OpenAI, OpenAI-compatible, Gemini,
     Voyage, Mistral, Bedrock, Ollama, LM Studio, GitHub Copilot, DeepInfra, or local**

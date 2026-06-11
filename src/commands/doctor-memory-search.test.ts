@@ -204,7 +204,19 @@ describe("noteMemorySearchHealth", () => {
     expect(note).toHaveBeenCalledTimes(1);
     const message = firstNoteMessage();
     expect(message).toContain('Memory search provider is set to "local"');
-    expect(message).toContain("openclaw plugins install @openclaw/llama-cpp-provider");
+    expect(message).toContain("openclaw config set agents.defaults.memorySearch.provider ollama");
+    expect(message).toContain(
+      "openclaw config set agents.defaults.memorySearch.model nomic-embed-text",
+    );
+    expect(message).toContain(
+      "openclaw config set agents.defaults.memorySearch.provider openai-compatible",
+    );
+    expect(message).toContain(
+      "openclaw config set agents.defaults.memorySearch.model text-embedding-nomic-embed-text-v1.5",
+    );
+    expect(message).toContain(
+      "openclaw config set agents.defaults.memorySearch.remote.baseUrl http://127.0.0.1:1234/v1",
+    );
   });
 
   it("warns when local provider with default model but gateway probe reports not ready", async () => {

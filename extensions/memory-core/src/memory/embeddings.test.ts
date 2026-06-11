@@ -212,9 +212,9 @@ describe("createEmbeddingProvider", () => {
     await expect(result.provider?.embedQuery("hello")).resolves.toEqual([0]);
   });
 
-  it("reports the llama.cpp plugin install command when local is unregistered", async () => {
+  it("reports local service alternatives when local is unregistered", async () => {
     await expect(createEmbeddingProvider(createOptions("local"))).rejects.toThrow(
-      "openclaw plugins install @openclaw/llama-cpp-provider",
+      'Switch memorySearch.provider to "ollama"',
     );
   });
 

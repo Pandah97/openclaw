@@ -42,7 +42,9 @@ function createMissingLlamaCppProviderError(): Error {
     [
       "Unknown memory embedding provider: local.",
       "Local GGUF embeddings are provided by the official llama.cpp provider plugin.",
-      "Install it with: openclaw plugins install @openclaw/llama-cpp-provider",
+      "The public llama.cpp provider package is temporarily unavailable.",
+      'Switch memorySearch.provider to "ollama", or use "openai-compatible" with the LM Studio /v1 base URL.',
+      "Install the llama.cpp provider from a source checkout only if you need GGUF embeddings.",
       "Then restart OpenClaw and retry: openclaw memory status --deep",
     ].join("\n"),
   );

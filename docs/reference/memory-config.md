@@ -281,8 +281,8 @@ Use `provider: "openai-compatible"` for a generic OpenAI-compatible
     | `local.modelCacheDir` | `string`           | node-llama-cpp default | Cache dir for downloaded models                                                                                                                                                                                                                                                                                      |
     | `local.contextSize`   | `number \| "auto"` | `4096`                 | Context window size for the embedding context. 4096 covers typical chunks (128–512 tokens) while bounding non-weight VRAM. Lower to 1024–2048 on constrained hosts. `"auto"` uses the model's trained maximum — not recommended for 8B+ models (Qwen3-Embedding-8B: 40 960 tokens → ~32 GB VRAM vs ~8.8 GB at 4096). |
 
-    Install the official llama.cpp provider first: `openclaw plugins install @openclaw/llama-cpp-provider`.
-    Default model: `embeddinggemma-300m-qat-Q8_0.gguf` (~0.6 GB, auto-downloaded). Source checkouts still require native build approval: `pnpm approve-builds` then `pnpm rebuild node-llama-cpp`.
+    The llama.cpp provider package is temporarily unavailable from the public package registries. For local embeddings with no API key, set `provider: "ollama"` with `model: "nomic-embed-text"`, or set `provider: "openai-compatible"` with LM Studio's `/v1` base URL and the loaded embedding model. Do not leave `provider: "local"` unless you are using the source-checkout-only llama.cpp provider.
+    Default model: `embeddinggemma-300m-qat-Q8_0.gguf` (~0.6 GB, auto-downloaded) when the provider is installed from a source checkout. Source checkouts still require native build approval: `pnpm approve-builds` then `pnpm rebuild node-llama-cpp`.
 
     Use the standalone CLI to verify the same provider path the Gateway uses:
 
@@ -291,7 +291,7 @@ Use `provider: "openai-compatible"` for a generic OpenAI-compatible
     openclaw memory index --force --agent main
     ```
 
-    Set `provider: "local"` explicitly for local GGUF embeddings. `hf:` and HTTP(S) model references are supported for explicit local configs, but they do not change the default provider.
+    Set `provider: "local"` explicitly for local GGUF embeddings only from a source checkout with the llama.cpp provider present. `hf:` and HTTP(S) model references are supported for explicit local configs, but they do not change the default provider.
 
   </Accordion>
 </AccordionGroup>
