@@ -305,7 +305,7 @@ function cloneMemoryPublicArtifact(
 ): MemoryPluginPublicArtifact {
   return {
     ...artifact,
-    agentIds: [...artifact.agentIds],
+    agentIds: [...(artifact.agentIds ?? [])],
   };
 }
 
@@ -315,27 +315,29 @@ export async function listActiveMemoryPublicArtifacts(params: {
   const artifacts =
     (await memoryPluginState.capability?.capability.publicArtifacts?.listArtifacts(params)) ?? [];
   return artifacts.map(cloneMemoryPublicArtifact).toSorted((left, right) => {
-    const workspaceOrder = left.workspaceDir.localeCompare(right.workspaceDir);
+    const workspaceOrder = (left.workspaceDir ?? "").localeCompare(right.workspaceDir ?? "");
     if (workspaceOrder !== 0) {
       return workspaceOrder;
     }
-    const relativePathOrder = left.relativePath.localeCompare(right.relativePath);
+    const relativePathOrder = (left.relativePath ?? "").localeCompare(right.relativePath ?? "");
     if (relativePathOrder !== 0) {
       return relativePathOrder;
     }
-    const kindOrder = left.kind.localeCompare(right.kind);
+    const kindOrder = (left.kind ?? "").localeCompare(right.kind ?? "");
     if (kindOrder !== 0) {
       return kindOrder;
     }
-    const contentTypeOrder = left.contentType.localeCompare(right.contentType);
+    const contentTypeOrder = (left.contentType ?? "").localeCompare(right.contentType ?? "");
     if (contentTypeOrder !== 0) {
       return contentTypeOrder;
     }
-    const agentOrder = left.agentIds.join("\0").localeCompare(right.agentIds.join("\0"));
+    const leftAgentIds = left.agentIds ?? [];
+    const rightAgentIds = right.agentIds ?? [];
+    const agentOrder = leftAgentIds.join("\0").localeCompare(rightAgentIds.join("\0"));
     if (agentOrder !== 0) {
       return agentOrder;
     }
-    return left.absolutePath.localeCompare(right.absolutePath);
+    return (left.absolutePath ?? "").localeCompare(right.absolutePath ?? "");
   });
 }
 
