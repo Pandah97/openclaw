@@ -99,7 +99,9 @@ export function resolveSessionTranscriptCandidates(
   // while still catching legacy transcript files that predate the per-agent
   // filing overhaul.
   const tryPushRawStaleCandidate = (): void => {
-    if (!sessionFile) return;
+    if (!sessionFile) {
+      return;
+    }
     const resolved = path.resolve(sessionFile);
     const relative = path.relative(canonicalLegacyDir, resolved);
     if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
