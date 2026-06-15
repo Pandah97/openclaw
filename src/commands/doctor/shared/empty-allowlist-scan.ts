@@ -102,7 +102,9 @@ export function scanEmptyAllowlistPolicyWarnings(
       const caps = getDoctorChannelCapabilities(channelName);
       const allAccountsOverrideEffectiveGroupAllowFrom = Object.values(channelAccounts).every(
         (acc) => {
-          if (!acc || typeof acc !== "object") return false;
+          if (!acc || typeof acc !== "object") {
+            return false;
+          }
           const record = acc as DoctorAccountRecord;
           // Explicit groupAllowFrom always counts
           if (hasAllowFromEntries(record.groupAllowFrom as DoctorAllowFromList | undefined)) {
