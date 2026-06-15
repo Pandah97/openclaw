@@ -117,6 +117,64 @@ describe("doctor empty allowlist policy scan", () => {
     ]);
   });
 
+  it("suppresses parent warning when all accounts have allowFrom with fallback enabled", () => {
+    const warnings = scanEmptyAllowlistPolicyWarnings(
+      {
+        channels: {
+          signal: {
+            dmPolicy: "open",
+            groupPolicy: "allowlist",
+            accounts: {
+              work: {
+                groupPolicy: "allowlist",
+                // No groupAllowFrom, but signal allows fallback to allowFrom
+                allowFrom: ["+1234567890"],
+              },
+              personal: {
+                groupPolicy: "allowlist",
+                allowFrom: ["+1987654321"],
+              },
+            },
+          },
+        },
+      },
+      { doctorFixCommand: "openclaw doctor --fix" },
+    );
+
+    // signal has groupAllowFromFallbackToAllowFrom=true, so account-level
+    // allowFrom serves as effective group sender allowlist. No warning expected.
+    expect(warnings).toStrictEqual([]);
+  });
+
+  it("does not suppress parent warning when accounts have allowFrom but fallback is disabled", () => {
+    const warnings = scanEmptyAllowlistPolicyWarnings(
+      {
+        channels: {
+          imessage: {
+            groupPolicy: "allowlist",
+            accounts: {
+              work: {
+                groupPolicy: "allowlist",
+                // imessage has groupAllowFromFallbackToAllowFrom=false
+                allowFrom: ["+1234567890"],
+              },
+            },
+          },
+        },
+      },
+      { doctorFixCommand: "openclaw doctor --fix" },
+    );
+
+    // imessage doesn't allow fallback, so account allowFrom does not override
+    // the parent groupAllowFrom. Parent warning should still fire, and the
+    // work account also gets a per-account warning since its allowFrom is
+    // not a valid group allowlist source for non-fallback channels.
+    expect(warnings).toStrictEqual([
+      '- channels.imessage.groupPolicy is "allowlist" but groupAllowFrom is empty — this channel does not fall back to allowFrom, so all group messages will be silently dropped. Add sender IDs to channels.imessage.groupAllowFrom, or set groupPolicy to "open".',
+      '- channels.imessage.accounts.work.groupPolicy is "allowlist" but groupAllowFrom is empty — this channel does not fall back to allowFrom, so all group messages will be silently dropped. Add sender IDs to channels.imessage.accounts.work.groupAllowFrom, or set groupPolicy to "open".',
+    ]);
+  });
+
   it("skips disabled channel and account entries", () => {
     const extraWarningsForAccount = vi.fn(({ prefix }) => [`extra:${prefix}`]);
 

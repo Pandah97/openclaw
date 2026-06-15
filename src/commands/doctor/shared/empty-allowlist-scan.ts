@@ -1,6 +1,7 @@
 // Doctor scanner for empty allowlist policies across configured channels and accounts.
 import type { ChannelDoctorEmptyAllowlistAccountContext } from "../../../channels/plugins/types.adapters.js";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
+import { getDoctorChannelCapabilities } from "../channel-capabilities.js";
 import type { DoctorAccountRecord, DoctorAllowFromList } from "../types.js";
 import { hasAllowFromEntries } from "./allowlist.js";
 import { collectEmptyAllowlistPolicyWarningsForAccount } from "./empty-allowlist-policy.js";
@@ -89,30 +90,44 @@ export function scanEmptyAllowlistPolicyWarnings(
     if (isDisabledRecord(channelConfig)) {
       continue;
     }
-    // When every child account has its own populated groupAllowFrom, the runtime
-    // resolves account ?? parent and never reads an empty parent list. Skip the
-    // false group-policy warning at parent scope while still checking DM policy.
+    // When every child account has its own populated group allowlist source,
+    // the runtime resolves account ?? parent and never reads an empty parent
+    // list. Skip the false group-policy warning at parent scope while still
+    // checking DM policy. Honor fallback-capable channels where account
+    // allowFrom serves as the effective group sender allowlist.
     const channelAccounts = asObjectRecord(channelConfig.accounts);
-    const allAccountsOverrideGroupAllowFrom =
-      channelAccounts &&
-      Object.keys(channelAccounts).length > 0 &&
-      Object.values(channelAccounts).every(
-        (acc) =>
-          acc &&
-          typeof acc === "object" &&
-          hasAllowFromEntries(
-            (acc as DoctorAccountRecord).groupAllowFrom as DoctorAllowFromList | undefined,
-          ),
+    const hasAccounts = channelAccounts && Object.keys(channelAccounts).length > 0;
+
+    if (hasAccounts) {
+      const caps = getDoctorChannelCapabilities(channelName);
+      const allAccountsOverrideEffectiveGroupAllowFrom = Object.values(channelAccounts).every(
+        (acc) => {
+          if (!acc || typeof acc !== "object") return false;
+          const record = acc as DoctorAccountRecord;
+          // Explicit groupAllowFrom always counts
+          if (hasAllowFromEntries(record.groupAllowFrom as DoctorAllowFromList | undefined)) {
+            return true;
+          }
+          // For fallback-capable channels, account-level allowFrom
+          // serves as the effective group sender allowlist.
+          if (caps.groupAllowFromFallbackToAllowFrom) {
+            return hasAllowFromEntries(record.allowFrom as DoctorAllowFromList | undefined);
+          }
+          return false;
+        },
       );
 
-    if (allAccountsOverrideGroupAllowFrom) {
-      // Strip groupPolicy so collectEmptyAllowlistPolicyWarningsForAccount skips
-      // the group-allowlist check — only DM-level warnings remain for the parent.
-      checkAccount(
-        { ...channelConfig, groupPolicy: undefined } as DoctorAccountRecord,
-        `channels.${channelName}`,
-        channelName,
-      );
+      if (allAccountsOverrideEffectiveGroupAllowFrom) {
+        // Strip groupPolicy so collectEmptyAllowlistPolicyWarningsForAccount skips
+        // the group-allowlist check — only DM-level warnings remain for the parent.
+        checkAccount(
+          { ...channelConfig, groupPolicy: undefined } as DoctorAccountRecord,
+          `channels.${channelName}`,
+          channelName,
+        );
+      } else {
+        checkAccount(channelConfig, `channels.${channelName}`, channelName);
+      }
     } else {
       checkAccount(channelConfig, `channels.${channelName}`, channelName);
     }
