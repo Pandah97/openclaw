@@ -47,7 +47,9 @@ const child1 = createRunningTaskRunOrNull({
   startedAt: BASE_TIME + 10,
   lastEventAt: BASE_TIME + 10,
 });
-if (child1) log("Child task created", { id: child1.taskId, status: child1.status, flowId: child1.parentFlowId });
+if (child1) {
+  log("Child task created", { id: child1.taskId, status: child1.status, flowId: child1.parentFlowId });
+}
 
 // Simulate maintenance running BEFORE child is terminal → should NOT reconcile
 const previewBefore = previewTaskFlowRegistryMaintenance();
@@ -116,7 +118,9 @@ const child3 = createRunningTaskRunOrNull({
   startedAt: BASE_TIME + 10,
   lastEventAt: BASE_TIME + 10,
 });
-if (child3) log("Child task created", { id: child3.taskId, status: child3.status });
+if (child3) {
+  log("Child task created", { id: child3.taskId, status: child3.status });
+}
 
 // Mark child terminal
 markTaskLostById({
