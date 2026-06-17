@@ -22,6 +22,18 @@ export async function configureCommandFromSectionsArg(
   rawSections: unknown,
   runtime: RuntimeEnv = defaultRuntime,
 ): Promise<void> {
+  if (!process.stdout.isTTY) {
+    runtime.error(
+      [
+        "Interactive configuration wizard requires a terminal (TTY).",
+        `Use non-interactive subcommands: ${formatCliCommand("openclaw config set <path> <value>")}, ${formatCliCommand("openclaw config get <path>")}, or ${formatCliCommand("openclaw config validate")}.`,
+        `Full reference: ${formatCliCommand("openclaw config --help")}`,
+      ].join("\n"),
+    );
+    runtime.exit(1);
+    return;
+  }
+
   const { sections, invalid } = parseConfigureWizardSections(rawSections);
   if (sections.length === 0) {
     await configureCommand(runtime);
