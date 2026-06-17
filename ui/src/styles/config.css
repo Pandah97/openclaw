@@ -173,9 +173,7 @@
   min-height: 0;
   min-width: 0;
   background: var(--panel);
-  overflow: hidden;
-  /* fallback for older browsers */
-  overflow: clip;
+  overflow-y: auto;
 }
 
 /* Actions Bar */
