@@ -1065,7 +1065,7 @@ describe("redactSensitiveText", () => {
 });
 
 describe("redactSecrets", () => {
-  it("redacts nested structured payloads before JSON persistence", () => {
+  it("redacts app passwords in Apple/iCloud-specific fields but not in generic text fields", () => {
     const input = {
       plugin: {
         config: {
@@ -1080,10 +1080,13 @@ describe("redactSecrets", () => {
           text: "jwt eyJheaderabcd.eyJpayloadabcd.signatureabcd123456 and main-test-case-name",
         },
         {
-          text: "standalone app password abcd-efgh-ijkl-mnop",
-          errorMessage: "failed with app password qrst-uvwx-yzab-cdef",
+          text: "standalone kube-node-pool-spec and help-desk-team-page identifiers survive",
+          errorMessage: "module load-some-bare-init crashed",
         },
       ],
+      appleCredentials: {
+        "app-specific-password": "abcd-efgh-ijkl-mnop",
+      },
     };
 
     const output = redactSecrets(input);
@@ -1092,8 +1095,12 @@ describe("redactSecrets", () => {
     expect(serialized).not.toContain("ya29.fake-access-token");
     expect(serialized).not.toContain("1//0fake-refresh-token");
     expect(serialized).not.toContain("eyJheaderabcd.eyJpayloadabcd.signatureabcd123456");
+    // App password in a password field is still redacted
     expect(serialized).not.toContain("abcd-efgh-ijkl-mnop");
-    expect(serialized).not.toContain("qrst-uvwx-yzab-cdef");
+    // Generic text/errorMessage fields no longer trigger app password masking
+    expect(serialized).toContain("kube-node-pool-spec");
+    expect(serialized).toContain("help-desk-team-page");
+    expect(serialized).toContain("load-some-bare-init");
     expect(serialized).toContain("main-test-case-name");
   });
 
