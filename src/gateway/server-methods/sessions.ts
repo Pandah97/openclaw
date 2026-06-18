@@ -749,7 +749,10 @@ async function handleSessionSend(params: {
     return;
   }
   const p = params.params;
-  const key = requireSessionKey((p as { key?: unknown }).key, params.respond);
+  const rawKey =
+    (p as { key?: unknown; sessionKey?: unknown }).key ??
+    (p as { sessionKey?: unknown }).sessionKey;
+  const key = requireSessionKey(rawKey, params.respond);
   if (!key) {
     return;
   }

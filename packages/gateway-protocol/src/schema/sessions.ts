@@ -257,6 +257,8 @@ export const SessionsCreateParamsSchema = Type.Object(
 export const SessionsSendParamsSchema = Type.Object(
   {
     key: NonEmptyString,
+    /** Alias for `key` — at least one of `key` or `sessionKey` must be present. */
+    sessionKey: Type.Optional(NonEmptyString),
     agentId: Type.Optional(NonEmptyString),
     message: Type.String(),
     thinking: Type.Optional(Type.String()),
