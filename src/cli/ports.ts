@@ -2,8 +2,8 @@
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:net";
 import { formatErrorMessage } from "../infra/errors.js";
+import { checkPortInUse } from "../infra/ports-inspect.js";
 import { resolveLsofCommandSync } from "../infra/ports-lsof.js";
-import { tryListenOnPort } from "../infra/ports-probe.js";
 import { resolvePositiveTimerTimeoutMs, resolveTimerTimeoutMs } from "../shared/number-coercion.js";
 import { sleep } from "../utils.js";
 
@@ -130,15 +130,17 @@ function killPortWithFuser(port: number, signal: "SIGTERM" | "SIGKILL"): PortPro
 }
 
 async function isPortBusy(port: number): Promise<boolean> {
-  try {
-    await tryListenOnPort({ port, exclusive: true });
-    return false;
-  } catch (err: unknown) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "EADDRINUSE") {
+  // FIX #94426: use checkPortInUse which probes all four endpoints (127.0.0.1,
+  // 0.0.0.0, ::1, ::) instead of a bare host-less listen that only detects
+  // IPv6-wildcard occupants on dual-stack machines.
+  const status = await checkPortInUse(port);
+  switch (status) {
+    case "busy":
       return true;
-    }
-    throw err instanceof Error ? err : new Error(String(err));
+    case "free":
+      return false;
+    case "unknown":
+      throw new Error(`isPortBusy: port ${port} probe returned unknown status`);
   }
 }
 
