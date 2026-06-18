@@ -30,7 +30,9 @@ vi.mock("openclaw/plugin-sdk/ssrf-runtime-internal", () => ({
   registerManagedProxyBrowserCdpBypass: registerManagedProxyBrowserCdpBypassMock,
 }));
 
-const ensurePortAvailableMock = vi.hoisted(() => vi.fn(async () => {}));
+const ensurePortAvailableMock = vi.hoisted(() =>
+  vi.fn<(port: number, host?: string) => Promise<void>>(async () => {}),
+);
 
 vi.mock("../infra/ports.js", () => ({
   ensurePortAvailable: ensurePortAvailableMock,
