@@ -42,7 +42,10 @@ import {
   stripHeartbeatToken,
   type HeartbeatTask,
 } from "../auto-reply/heartbeat.js";
-import { replaceGenericExternalRunFailureText } from "../auto-reply/reply/agent-runner-failure-copy.js";
+import {
+  isGenericExternalRunFailureText,
+  replaceGenericExternalRunFailureText,
+} from "../auto-reply/reply/agent-runner-failure-copy.js";
 import { resolveDefaultModel } from "../auto-reply/reply/directive-handling.defaults.js";
 import {
   REPLY_OPERATION_RUN_STATE,
@@ -1894,6 +1897,44 @@ export async function runHeartbeatOnce(opts: {
         accountId: delivery.accountId,
         silent: !okSent,
         indicatorType: visibility.useIndicator ? resolveIndicatorType("ok-empty") : undefined,
+      });
+      await markCommitmentsStatus({
+        cfg,
+        ids: dueCommitmentIds,
+        status: "dismissed",
+        nowMs: startedAt,
+      });
+      await updateTaskTimestamps();
+      consumeInspectedSystemEvents();
+      return { status: "ran", durationMs: Date.now() - startedAt };
+    }
+
+    // When the model was given the heartbeat_respond tool but didn't call it,
+    // treat the response as private - don't deliver raw text to the channel.
+    // This preserves the message_tool_only privacy guarantee.
+    // Error/failure payloads still get delivered so users see critical notices.
+    if (
+      usesHeartbeatResponseTool &&
+      !heartbeatToolResponse &&
+      !replyPayload?.isError &&
+      !isGenericExternalRunFailureText(replyPayload?.text)
+    ) {
+      await restoreHeartbeatUpdatedAt({
+        storePath,
+        sessionKey,
+        updatedAt: previousUpdatedAt,
+      });
+
+      const okSent = await maybeSendHeartbeatOk();
+      emitHeartbeatEvent({
+        status: "ok-token",
+        reason: opts.reason,
+        preview: replyPayload?.text?.slice(0, 200) ?? "",
+        durationMs: Date.now() - startedAt,
+        channel: delivery.channel !== "none" ? delivery.channel : undefined,
+        accountId: delivery.accountId,
+        silent: !okSent,
+        indicatorType: visibility.useIndicator ? resolveIndicatorType("ok-token") : undefined,
       });
       await markCommitmentsStatus({
         cfg,
