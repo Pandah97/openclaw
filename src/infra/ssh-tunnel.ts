@@ -119,7 +119,9 @@ export async function startSshPortForward(opts: {
 
   let localPort = opts.localPortPreferred;
   try {
-    await ensurePortAvailable(localPort);
+    // FIX #94596: Pin to IPv4 loopback so the probe detects IPv4-only occupants.
+    // A host-less probe binds to the IPv6 wildcard and misses IPv4-only port usage.
+    await ensurePortAvailable(localPort, "127.0.0.1");
   } catch (err) {
     if (isErrno(err) && err.code === "EADDRINUSE") {
       localPort = await pickEphemeralPort();
