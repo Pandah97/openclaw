@@ -50,6 +50,26 @@ describe("CustomEditor", () => {
     expect(editor.getText()).toBe("");
   });
 
+  it("deletes character backward on \\x7f (DEL / WSL2 backspace)", () => {
+    const tui = { requestRender: vi.fn() } as unknown as TUI;
+    const editor = new CustomEditor(tui, editorTheme);
+
+    editor.handleInput("abc");
+    editor.handleInput("\x7f");
+
+    expect(editor.getText()).toBe("ab");
+  });
+
+  it("deletes character backward on \\x08 (BS)", () => {
+    const tui = { requestRender: vi.fn() } as unknown as TUI;
+    const editor = new CustomEditor(tui, editorTheme);
+
+    editor.handleInput("abc");
+    editor.handleInput("\x08");
+
+    expect(editor.getText()).toBe("ab");
+  });
+
   it("ignores printable Kitty key release events", () => {
     const tui = { requestRender: vi.fn() } as unknown as TUI;
     const editor = new CustomEditor(tui, editorTheme);

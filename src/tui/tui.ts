@@ -248,7 +248,12 @@ export function createBackspaceDeduper(params?: { dedupeWindowMs?: number; now?:
   let lastBackspaceAt = -1;
 
   return (data: string): string => {
-    if (data !== "\x08" && !matchesKey(data, Key.backspace)) {
+    // Both \x08 (BS) and \x7f (DEL) can represent backspace depending on
+    // terminal/OS. On WSL2/Windows Terminal, isWindowsTerminalSession()
+    // maps \x08 to ctrl+backspace, so matchesKey alone is not sufficient.
+    // Check raw bytes explicitly, then fall back to pi-tui key matching
+    // for CSI-u / Kitty protocol sequences.
+    if (data !== "\x08" && data !== "\x7f" && !matchesKey(data, Key.backspace)) {
       return data;
     }
     const ts = now();

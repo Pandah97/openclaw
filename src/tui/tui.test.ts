@@ -396,6 +396,38 @@ describe("createBackspaceDeduper", () => {
     expect(dedupe("a")).toBe("a");
     expect(dedupe("\x1b[A")).toBe("\x1b[A");
   });
+
+  it("dedupes consecutive \\x7f (DEL) events within the window", () => {
+    const { dedupe, advance } = createTimedDedupe();
+
+    expect(dedupe("\x7f")).toBe("\x7f");
+    advance(1);
+    expect(dedupe("\x7f")).toBe("");
+  });
+
+  it("dedupes consecutive \\x08 (BS) events within the window", () => {
+    const { dedupe, advance } = createTimedDedupe();
+
+    expect(dedupe("\x08")).toBe("\x08");
+    advance(1);
+    expect(dedupe("\x08")).toBe("");
+  });
+
+  it("treats \\x7f as backspace when it is the second event after \\x08", () => {
+    const { dedupe, advance } = createTimedDedupe();
+
+    expect(dedupe("\x08")).toBe("\x08");
+    advance(1);
+    expect(dedupe("\x7f")).toBe("");
+  });
+
+  it("treats \\x7f as backspace when it is the first event before \\x08", () => {
+    const { dedupe, advance } = createTimedDedupe();
+
+    expect(dedupe("\x7f")).toBe("\x7f");
+    advance(1);
+    expect(dedupe("\x08")).toBe("");
+  });
 });
 
 describe("resolveCtrlCAction", () => {
