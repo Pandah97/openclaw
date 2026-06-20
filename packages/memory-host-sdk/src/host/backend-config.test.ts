@@ -166,6 +166,50 @@ describe("resolveMemoryBackendConfig", () => {
     expect(requireQmdConfig(resolved).command).toBe("/Applications/QMD Tools/qmd");
   });
 
+  // FIX(#92302): On Windows, splitShellArgs treats \ as POSIX escape, stripping
+  // path separators. Verify Windows paths are preserved after the fix.
+  it("preserves Windows backslash paths on win32 platform", () => {
+    const origPlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    try {
+      Object.defineProperty(process, "platform", { value: "win32" });
+      const cfg = {
+        agents: { defaults: { workspace: "C:\\Users\\test" } },
+        memory: {
+          backend: "qmd",
+          qmd: {
+            command: "C:\\Users\\test\\AppData\\Roaming\\npm\\qmd.js",
+          },
+        },
+      } as OpenClawConfig;
+      const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+      expect(requireQmdConfig(resolved).command).toBe(
+        "C:\\Users\\test\\AppData\\Roaming\\npm\\qmd.js",
+      );
+    } finally {
+      Object.defineProperty(process, "platform", origPlatform);
+    }
+  });
+
+  it("preserves unix paths on non-win32 platform", () => {
+    const origPlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    try {
+      Object.defineProperty(process, "platform", { value: "linux" });
+      const cfg = {
+        agents: { defaults: { workspace: "/home/user" } },
+        memory: {
+          backend: "qmd",
+          qmd: {
+            command: "/usr/local/bin/qmd",
+          },
+        },
+      } as OpenClawConfig;
+      const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
+      expect(requireQmdConfig(resolved).command).toBe("/usr/local/bin/qmd");
+    } finally {
+      Object.defineProperty(process, "platform", origPlatform);
+    }
+  });
+
   it("resolves custom paths relative to workspace", () => {
     const cfg = {
       agents: {

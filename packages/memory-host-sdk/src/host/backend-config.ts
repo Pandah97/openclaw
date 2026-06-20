@@ -439,7 +439,10 @@ export function resolveMemoryBackendConfig(params: {
   ];
 
   const rawCommand = qmdCfg?.command?.trim() || "qmd";
-  const parsedCommand = splitShellArgs(rawCommand);
+  // On Windows, splitShellArgs treats \ as a POSIX escape character, which
+  // strips Windows path separators. Double backslashes so they survive parsing.
+  const arg = process.platform === "win32" ? rawCommand.replace(/\\/g, "\\\\") : rawCommand;
+  const parsedCommand = splitShellArgs(arg);
   const command = parsedCommand?.[0] || rawCommand.split(/\s+/)[0] || "qmd";
   const resolved: ResolvedQmdConfig = {
     command,
