@@ -10,6 +10,7 @@ import {
   coerceToFailoverError,
   describeFailoverError,
   FailoverError,
+  isLocalToolExecutionError,
   isNonProviderRuntimeCoordinationError,
   isSignalTimeoutReason,
   isTimeoutError,
@@ -1304,6 +1305,35 @@ describe("failover-error", () => {
       ).toBe(false);
       expect(isNonProviderRuntimeCoordinationError(null)).toBe(false);
       expect(isNonProviderRuntimeCoordinationError(undefined)).toBe(false);
+    });
+  });
+
+  describe("isLocalToolExecutionError", () => {
+    const MISSING_TOOL_RESULT_MESSAGE =
+      "OpenClaw recorded a native Codex tool.call without a matching tool.result before the turn completed.";
+
+    it("returns true for exact missing_tool_result error message", () => {
+      expect(isLocalToolExecutionError(MISSING_TOOL_RESULT_MESSAGE)).toBe(true);
+    });
+
+    it("returns true when the missing_tool_result message is wrapped as an Error", () => {
+      expect(isLocalToolExecutionError(new Error(MISSING_TOOL_RESULT_MESSAGE))).toBe(true);
+    });
+
+    it("returns false for provider errors (rate limit, auth, timeout)", () => {
+      expect(isLocalToolExecutionError(OPENAI_RATE_LIMIT_MESSAGE)).toBe(false);
+      expect(isLocalToolExecutionError(ANTHROPIC_OVERLOADED_PAYLOAD)).toBe(false);
+      expect(isLocalToolExecutionError(BEDROCK_THROTTLING_EXCEPTION_MESSAGE)).toBe(false);
+    });
+
+    it("returns false for null, undefined, and empty string", () => {
+      expect(isLocalToolExecutionError(null)).toBe(false);
+      expect(isLocalToolExecutionError(undefined)).toBe(false);
+      expect(isLocalToolExecutionError("")).toBe(false);
+    });
+
+    it("returns false for non-Error objects without the sentinel text", () => {
+      expect(isLocalToolExecutionError({ status: 500, message: "internal error" })).toBe(false);
     });
   });
 });

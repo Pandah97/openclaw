@@ -1271,6 +1271,33 @@ describe("runWithModelFallback", () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  it("aborts the fallback chain on missing_tool_result instead of trying every model (#95474)", async () => {
+    const cfg = makeCfg({
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/gpt-5.4",
+            fallbacks: ["anthropic/claude-sonnet-4-6", "openai/gpt-4.1-mini"],
+          },
+        },
+      },
+    });
+    const missingToolResultError = new Error(
+      "OpenClaw recorded a native Codex tool.call without a matching tool.result before the turn completed.",
+    );
+    const run = vi.fn().mockRejectedValue(missingToolResultError);
+
+    await expect(
+      runWithModelFallback({
+        cfg,
+        provider: "openai",
+        model: "gpt-5.4",
+        run,
+      }),
+    ).rejects.toBe(missingToolResultError);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps provider failover metadata authoritative over nested session locks", async () => {
     const cfg = makeCfg({
       agents: {

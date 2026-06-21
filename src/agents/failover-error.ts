@@ -364,6 +364,30 @@ export function isNonProviderRuntimeCoordinationError(err: unknown): boolean {
   return resolveFailoverClassificationFromError(err) === null;
 }
 
+/**
+ * The sentinel text that Codex app-server (event-projector.ts) stores when a
+ * native tool.call finished without a matching tool.result. The model fallback
+ * chain must not consume candidates on this — no other provider can fix a local
+ * command that hung or was reaped. See #95474.
+ */
+const MISSING_TOOL_RESULT_MESSAGE_PREFIX =
+  "OpenClaw recorded a native Codex tool.call without a matching tool.result";
+
+/**
+ * True when the error is a local tool-execution failure (synthetic
+ * missing_tool_result from a hung native Codex tool.call) rather than a true
+ * provider/model failure. The model fallback chain must abort on these instead
+ * of consuming candidate slots — switching providers cannot fix a local command.
+ * See #95474.
+ */
+export function isLocalToolExecutionError(err: unknown): boolean {
+  if (!err) {
+    return false;
+  }
+  const message = typeof err === "string" ? err : err instanceof Error ? err.message : null;
+  return typeof message === "string" && message.includes(MISSING_TOOL_RESULT_MESSAGE_PREFIX);
+}
+
 function hasTimeoutHint(err: unknown): boolean {
   if (!err) {
     return false;

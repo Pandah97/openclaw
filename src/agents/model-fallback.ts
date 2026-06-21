@@ -38,6 +38,7 @@ import {
   coerceToFailoverError,
   describeFailoverError,
   isFailoverError,
+  isLocalToolExecutionError,
   isNonProviderRuntimeCoordinationError,
   isTimeoutError,
 } from "./failover-error.js";
@@ -1732,6 +1733,13 @@ async function runWithModelFallbackInternal<T>(
         throw err;
       }
       if (isMissingAgentHarnessError(err)) {
+        throw err;
+      }
+      // Local tool-execution failures (synthetic missing_tool_result from a
+      // hung native Codex tool.call) are not provider/model failures. Throwing
+      // here prevents the fallback chain from switching providers for a local
+      // command that no other provider can fix. See #95474.
+      if (isLocalToolExecutionError(err)) {
         throw err;
       }
       const normalized =
