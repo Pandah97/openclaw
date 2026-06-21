@@ -189,8 +189,6 @@ describe("zai provider plugin", () => {
     ).toEqual(registered);
   });
 
-  // FIX #94269: synthesized model must include baseUrl even when the template model
-  // is not in the registry and no provider config is set.
   it("falls back to manifest baseUrl when both providerConfig and template model are unavailable", async () => {
     const provider = await registerSingleProviderPlugin(plugin);
 

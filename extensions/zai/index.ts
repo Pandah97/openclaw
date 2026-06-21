@@ -34,7 +34,7 @@ import { fetchZaiUsage } from "openclaw/plugin-sdk/provider-usage";
 import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/string-coerce-runtime";
 import { detectZaiEndpoint, type ZaiEndpointId } from "./detect.js";
 import { zaiMediaUnderstandingProvider } from "./media-understanding-provider.js";
-import { buildZaiModelDefinition, ZAI_MANIFEST_BASE_URL } from "./model-definitions.js";
+import { buildZaiModelDefinition, resolveZaiBaseUrl } from "./model-definitions.js";
 import { applyZaiConfig, applyZaiProviderConfig, resolveZaiModelId } from "./onboard.js";
 
 const PROVIDER_ID = "zai";
@@ -104,9 +104,8 @@ function resolveGlm5ForwardCompatModel(
     ...template,
     id: def.id,
     name: def.name,
-    // FIX #94269: fall back to manifest provider-level baseUrl when neither
-    // provider config nor template model in registry has one.
-    baseUrl: ctx.providerConfig?.baseUrl ?? template?.baseUrl ?? ZAI_MANIFEST_BASE_URL,
+    // Native models must never fall through to the OpenAI SDK's default host.
+    baseUrl: ctx.providerConfig?.baseUrl ?? template?.baseUrl ?? resolveZaiBaseUrl(),
     api: "openai-completions",
     provider: PROVIDER_ID,
     reasoning: def.reasoning,
