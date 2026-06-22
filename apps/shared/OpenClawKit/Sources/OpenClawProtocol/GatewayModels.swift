@@ -2331,6 +2331,7 @@ public struct SessionsCreateParams: Codable, Sendable {
 
 public struct SessionsSendParams: Codable, Sendable {
     public let key: String
+    public let sessionkey: String?
     public let agentid: String?
     public let message: String
     public let thinking: String?
@@ -2340,6 +2341,7 @@ public struct SessionsSendParams: Codable, Sendable {
 
     public init(
         key: String,
+        sessionkey: String?,
         agentid: String? = nil,
         message: String,
         thinking: String?,
@@ -2348,6 +2350,7 @@ public struct SessionsSendParams: Codable, Sendable {
         idempotencykey: String?)
     {
         self.key = key
+        self.sessionkey = sessionkey
         self.agentid = agentid
         self.message = message
         self.thinking = thinking
@@ -2358,6 +2361,7 @@ public struct SessionsSendParams: Codable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case key
+        case sessionkey = "sessionKey"
         case agentid = "agentId"
         case message
         case thinking
