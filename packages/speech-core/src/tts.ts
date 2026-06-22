@@ -1940,7 +1940,7 @@ function hasLegacyFinalMediaDirective(text: string): boolean {
  * sequences, and tag sequences.
  */
 const EMOJI_RE =
-  /\p{Extended_Pictographic}|[\u{200D}\u{20E3}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\u{E0060}-\u{E007F}]/gu;
+  /\p{Extended_Pictographic}|[\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\u{E0060}-\u{E007F}]|\u{200D}|\u{20E3}/gu;
 
 function stripEmoji(text: string): string {
   return text.replace(EMOJI_RE, "").trim();
