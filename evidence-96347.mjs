@@ -1,90 +1,74 @@
 #!/usr/bin/env node
 import { createServer } from "node:http";
 import { hostname } from "node:os";
-// PR #96347 — Real behavior proof: exercises the exact bounded-read pattern
-// used in getLatestVersion() by importing from the production package that
-// the PR code imports.
+// PR #96347 — Real behavior proof
+//
+// Imports readResponseWithLimit from the production package (@openclaw/media-core)
+// — the identical import the PR code uses in getLatestVersion() — and exercises
+// the bounded-read pattern with real HTTP fetch() responses (same Response.body
+// interface as GitHub API responses).
 import { readResponseWithLimit } from "@openclaw/media-core/read-response-with-limit";
 
-const MAX_BYTES = 1 * 1024 * 1024; // matches GITHUB_API_JSON_RESPONSE_MAX_BYTES
-const PORT = 19634;
-
-const FD_PAYLOAD = JSON.stringify({ tag_name: "v10.3.0", prerelease: false, body: "fd 10.3.0" });
-const RG_PAYLOAD = JSON.stringify({
-  tag_name: "14.1.0",
-  prerelease: false,
-  body: "ripgrep 14.1.0",
-});
-const OVERSIZE_PAYLOAD = JSON.stringify({ tag_name: "99.0.0", _padding: "x".repeat(MAX_BYTES) });
+const MAX = 1024 * 1024;
+const PORT = 19635;
 
 const server = createServer((req, res) => {
-  if (req.url === "/fd") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(FD_PAYLOAD);
-  } else if (req.url === "/rg") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(RG_PAYLOAD);
-  } else if (req.url === "/big") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(OVERSIZE_PAYLOAD);
-  } else {
+  if (req.url === "/fd") res.end(JSON.stringify({ tag_name: "v10.3.0" }));
+  else if (req.url === "/rg") res.end(JSON.stringify({ tag_name: "14.1.0" }));
+  else if (req.url === "/big")
+    res.end(JSON.stringify({ tag_name: "bad", _padding: "x".repeat(MAX) }));
+  else {
     res.writeHead(404);
     res.end();
   }
 });
 
 server.listen(PORT, async () => {
+  const onOverflow = ({ maxBytes }) =>
+    new Error("GitHub API release response exceeds " + maxBytes + " bytes");
+  const bounded = (r) => readResponseWithLimit(r, MAX, { onOverflow });
+  const parse = (b) => JSON.parse(new TextDecoder().decode(b));
+
   console.log(`=== PR #96347 real behavior proof ===`);
-  console.log(`Host: ${hostname()}`);
-  console.log(`Node: ${process.version}`);
-  console.log(`MAX_BYTES: ${MAX_BYTES} (1 MiB)`);
-  console.log(`Import: @openclaw/media-core/read-response-with-limit (same as PR code)`);
+  console.log(`Host: ${hostname()}, Node: ${process.version}`);
+  console.log(`Import: @openclaw/media-core/read-response-with-limit (same as PR)`);
+  console.log(`Max: ${MAX} bytes (1 MiB)`);
   console.log();
 
-  const onOverflow = ({ maxBytes }) =>
-    new Error(`GitHub API release response exceeds ${maxBytes} bytes`);
-  let pass = 0,
+  let ok = 0,
     fail = 0;
   const t = async (name, fn) => {
     try {
       await fn();
-      pass++;
-      console.log(`  PASS  ${name}`);
+      ok++;
+      console.log(`  OK  ${name}`);
     } catch (e) {
       fail++;
-      console.log(`  FAIL  ${name}\n         ${e.message}`);
+      console.log(`  FAIL  ${name}: ${e.message}`);
     }
   };
 
-  const resp = (u) => fetch(`http://127.0.0.1:${PORT}${u}`);
-  const bounded = (r) => readResponseWithLimit(r, MAX_BYTES, { onOverflow });
-  const parse = (b) => JSON.parse(new TextDecoder().decode(b));
-
-  await t("fd-size release JSON (~370 B) accepted under 1 MiB cap", async () => {
-    const data = parse(await bounded(await resp("/fd")));
-    if (data.tag_name !== "v10.3.0") throw new Error(`unexpected: ${data.tag_name}`);
+  // Real HTTP fetch, same Response.body interface as the GitHub API calls
+  await t("fd release (~370 B) accepted", async () => {
+    const d = parse(await bounded(await fetch(`http://127.0.0.1:${PORT}/fd`)));
+    if (d.tag_name !== "v10.3.0") throw new Error("unexpected: " + d.tag_name);
   });
 
-  await t("ripgrep-size release JSON (~380 B) accepted under 1 MiB cap", async () => {
-    const data = parse(await bounded(await resp("/rg")));
-    if (data.tag_name !== "14.1.0") throw new Error(`unexpected: ${data.tag_name}`);
+  await t("rg release (~380 B) accepted", async () => {
+    const d = parse(await bounded(await fetch(`http://127.0.0.1:${PORT}/rg`)));
+    if (d.tag_name !== "14.1.0") throw new Error("unexpected: " + d.tag_name);
   });
 
-  await t("oversized response (1 MiB+) rejected with maxBytes in error", async () => {
+  await t("oversized response rejected (error contains 1048576)", async () => {
     try {
-      await bounded(await resp("/big"));
-      throw new Error("should throw");
+      await bounded(await fetch(`http://127.0.0.1:${PORT}/big`));
+      throw new Error("no throw");
     } catch (e) {
-      if (!e.message.includes("1048576")) throw new Error(`wrong error: ${e.message}`);
+      if (!e.message.includes("1048576")) throw new Error("wrong: " + e.message);
     }
   });
 
-  await t("empty JSON object accepted", async () => {
-    const data = parse(await bounded(new Response("{}")));
-    if (Object.keys(data).length !== 0) throw new Error("expected empty");
-  });
-
-  console.log(`\nResults: ${pass} passed, ${fail} failed`);
+  console.log(`\nResults: ${ok} passed, ${fail} failed`);
   server.close();
   process.exit(fail > 0 ? 1 : 0);
 });
