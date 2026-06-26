@@ -68,6 +68,8 @@ describe("resolveCronPayloadOutcome", () => {
     expect(result.hasFatalErrorPayload).toBe(false);
     expect(result.embeddedRunError).toBeUndefined();
     expect(result.summary).toBe("REPRO_FINAL_OUTPUT_PRESENT");
+    expect(result.outputText).toBe("REPRO_FINAL_OUTPUT_PRESENT");
+    expect(result.deliveryPayloads).toEqual([{ text: "REPRO_FINAL_OUTPUT_PRESENT" }]);
   });
 
   it("treats transient error payloads as non-fatal when a later success exists", () => {
