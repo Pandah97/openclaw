@@ -84,7 +84,9 @@ server.listen(PORT, () => {
       }
 
       console.log(`\n✓ ${passed}/${total} passed -- feishu readResponseWithLimit bound works.`);
-      if (passed !== total) process.exitCode = 1;
+      if (passed !== total) {
+        process.exitCode = 1;
+      }
     } finally {
       server.close();
     }
