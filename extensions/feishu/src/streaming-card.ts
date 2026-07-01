@@ -118,19 +118,23 @@ async function getToken(creds: Credentials): Promise<string> {
     await release();
     throw new Error(`Token request failed with HTTP ${response.status}`);
   }
-  const buffer = await readResponseWithLimit(response, FEISHU_STREAMING_RESPONSE_LIMIT_BYTES, {
-    onOverflow: () =>
-      new Error(
-        `Feishu streaming token response exceeded maximum size (${FEISHU_STREAMING_RESPONSE_LIMIT_BYTES} bytes)`,
-      ),
-  });
-  const data = JSON.parse(new TextDecoder().decode(buffer)) as {
-    code: number;
-    msg: string;
-    tenant_access_token?: string;
-    expire?: number;
-  };
-  await release();
+  let data;
+  try {
+    const buffer = await readResponseWithLimit(response, FEISHU_STREAMING_RESPONSE_LIMIT_BYTES, {
+      onOverflow: () =>
+        new Error(
+          `Feishu streaming token response exceeded maximum size (${FEISHU_STREAMING_RESPONSE_LIMIT_BYTES} bytes)`,
+        ),
+    });
+    data = JSON.parse(new TextDecoder().decode(buffer)) as {
+      code: number;
+      msg: string;
+      tenant_access_token?: string;
+      expire?: number;
+    };
+  } finally {
+    await release();
+  }
   if (data.code !== 0 || !data.tenant_access_token) {
     throw new Error(`Token error: ${data.msg}`);
   }
@@ -284,22 +288,26 @@ export class FeishuStreamingSession {
       await releaseCreate();
       throw new Error(`Create card request failed with HTTP ${createRes.status}`);
     }
-    const createBuffer = await readResponseWithLimit(
-      createRes,
-      FEISHU_STREAMING_RESPONSE_LIMIT_BYTES,
-      {
-        onOverflow: () =>
-          new Error(
-            `Feishu create card response exceeded maximum size (${FEISHU_STREAMING_RESPONSE_LIMIT_BYTES} bytes)`,
-          ),
-      },
-    );
-    const createData = JSON.parse(new TextDecoder().decode(createBuffer)) as {
-      code: number;
-      msg: string;
-      data?: { card_id: string };
-    };
-    await releaseCreate();
+    let createData;
+    try {
+      const createBuffer = await readResponseWithLimit(
+        createRes,
+        FEISHU_STREAMING_RESPONSE_LIMIT_BYTES,
+        {
+          onOverflow: () =>
+            new Error(
+              `Feishu create card response exceeded maximum size (${FEISHU_STREAMING_RESPONSE_LIMIT_BYTES} bytes)`,
+            ),
+        },
+      );
+      createData = JSON.parse(new TextDecoder().decode(createBuffer)) as {
+        code: number;
+        msg: string;
+        data?: { card_id: string };
+      };
+    } finally {
+      await releaseCreate();
+    }
     if (createData.code !== 0 || !createData.data?.card_id) {
       throw new Error(`Create card failed: ${createData.msg}`);
     }
