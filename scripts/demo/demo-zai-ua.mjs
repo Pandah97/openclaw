@@ -51,7 +51,7 @@ const server = createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  (async () => {
+  void (async () => {
     try {
       const payload = JSON.stringify({
         model: "test",
