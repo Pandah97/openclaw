@@ -147,7 +147,7 @@ function formatPendingApprovalCommand(raw: unknown, opts: NodesRpcOpts): string 
 }
 
 function parseSinceMs(raw: unknown, label: string): number | undefined {
-  if (raw === undefined || raw === null) {
+  if (raw == null) {
     return undefined;
   }
   const value = normalizeOptionalString(raw) ?? (typeof raw === "number" ? String(raw) : null);

@@ -178,7 +178,7 @@ function gmailOptionsFromCommon(
 }
 
 function numberOption(value: unknown, label: string): number | undefined {
-  if (value === undefined || value === null) {
+  if (value == null) {
     return undefined;
   }
   const n = parseStrictPositiveInteger(value);
@@ -189,7 +189,7 @@ function numberOption(value: unknown, label: string): number | undefined {
 }
 
 function booleanOption(value: unknown): boolean | undefined {
-  if (value === undefined || value === null) {
+  if (value == null) {
     return undefined;
   }
   return Boolean(value);

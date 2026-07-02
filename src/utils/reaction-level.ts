@@ -22,7 +22,7 @@ const LEVELS = new Set<ReactionLevel>(["off", "ack", "minimal", "extensive"]);
 function parseLevel(
   value: unknown,
 ): { kind: "missing" } | { kind: "invalid" } | { kind: "ok"; value: ReactionLevel } {
-  if (value === undefined || value === null) {
+  if (value == null) {
     return { kind: "missing" };
   }
   if (typeof value !== "string") {

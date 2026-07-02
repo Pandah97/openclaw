@@ -68,7 +68,7 @@ function toPathSegments(fieldKey: string): string[] {
 }
 
 function formatCurrentValue(value: unknown): string {
-  if (value === undefined || value === null) {
+  if (value == null) {
     return "";
   }
   if (typeof value === "string") {
@@ -140,7 +140,7 @@ export function discoverUnconfiguredPlugins(params: {
     const existing = getExistingPluginConfig(params.config, plugin.id);
     return Object.keys(plugin.uiHints).some((key) => {
       const val = getPath(existing, toPathSegments(key));
-      return val === undefined || val === null || val === "";
+      return val == null || val === "";
     });
   });
 }

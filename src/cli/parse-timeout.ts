@@ -3,7 +3,7 @@ import { parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 
 /** Parse a positive millisecond timeout, returning undefined for absent or invalid input. */
 export function parseTimeoutMs(raw: unknown): number | undefined {
-  if (raw === undefined || raw === null) {
+  if (raw == null) {
     return undefined;
   }
   let value = Number.NaN;
@@ -36,7 +36,7 @@ export function parseTimeoutMsWithFallback(
     invalidType?: "fallback" | "error";
   } = {},
 ): number {
-  if (raw === undefined || raw === null) {
+  if (raw == null) {
     return fallbackMs;
   }
 

@@ -4,7 +4,7 @@ import { parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 const MAX_TCP_PORT = 65_535;
 
 export function parseGatewayPortOption(raw: unknown, flagName = "--port"): number | undefined {
-  if (raw === undefined || raw === null) {
+  if (raw == null) {
     return undefined;
   }
 
