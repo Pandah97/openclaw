@@ -36,21 +36,31 @@ describe("openai oauth error body boundary", () => {
       res.writeHead(500, { "Content-Type": "text/plain" });
       let written = 0;
       function write() {
-        if (written >= 4 * 1024 * 1024) { res.end(); return; }
+        if (written >= 4 * 1024 * 1024) {
+          res.end();
+          return;
+        }
         const ok = res.write(CHUNK);
         written += CHUNK.length;
-        if (ok) setImmediate(write);
-        else res.once("drain", write);
+        if (ok) {
+          setImmediate(write);
+        } else {
+          res.once("drain", write);
+        }
       }
       write();
     });
-    await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve());
+    });
     port = (server.address() as { port: number }).port;
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    await new Promise<void>((r) => server.close(() => r()));
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
   });
 
   it("bounds token refresh error body at 16 KiB", async () => {
@@ -64,9 +74,7 @@ describe("openai oauth error body boundary", () => {
     });
 
     const { refreshOpenAICodexToken } = await import("./openai-chatgpt-oauth-flow.runtime.js");
-    const result = await refreshOpenAICodexToken("stale-refresh-token").catch(
-      (e: unknown) => e,
-    );
+    const result = await refreshOpenAICodexToken("stale-refresh-token").catch((e: unknown) => e);
 
     // refreshTokensForCodex returns {type: "failed", status, message}
     // on HTTP errors, or throws for transport errors.
