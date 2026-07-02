@@ -342,7 +342,7 @@ function readBooleanField(value: unknown, key: string): boolean | undefined {
   return typeof record[key] === "boolean" ? record[key] : undefined;
 }
 
-const hasAccountValue = (account: unknown): boolean => account !== null && account !== undefined;
+const hasAccountValue = (account: unknown): boolean => account != null;
 
 function resolveProbeAccountEnabled(params: {
   plugin: ChannelPlugin;

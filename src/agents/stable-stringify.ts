@@ -11,7 +11,7 @@ export function stableStringify(value: unknown): string {
 }
 
 function stringifyStableValue(value: unknown, stack: WeakSet<object>): string {
-  if (value === null || value === undefined) {
+  if (value == null) {
     return String(value);
   }
   if (typeof value === "number" && !Number.isFinite(value)) {

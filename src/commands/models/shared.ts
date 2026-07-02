@@ -39,7 +39,7 @@ export const formatTokenK = (value?: number | null) => {
 
 /** Formats millisecond durations for model command output. */
 export const formatMs = (value?: number | null) => {
-  if (value === null || value === undefined) {
+  if (value == null) {
     return "-";
   }
   if (!Number.isFinite(value)) {

@@ -13,7 +13,7 @@ function walkUpFrom<T>(
   const maxDepth = opts.maxDepth ?? DEFAULT_GIT_DISCOVERY_MAX_DEPTH;
   for (let i = 0; i < maxDepth; i += 1) {
     const resolved = resolveAtDir(current);
-    if (resolved !== null && resolved !== undefined) {
+    if (resolved != null) {
       return resolved;
     }
     const parent = path.dirname(current);

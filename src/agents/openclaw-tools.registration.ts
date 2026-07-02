@@ -19,7 +19,7 @@ import type { AnyAgentTool } from "./tools/common.js";
 export function collectPresentOpenClawTools(
   candidates: readonly (AnyAgentTool | null | undefined)[],
 ): AnyAgentTool[] {
-  return candidates.filter((tool): tool is AnyAgentTool => tool !== null && tool !== undefined);
+  return candidates.filter((tool): tool is AnyAgentTool => tool != null);
 }
 
 /** Resolves the default update_plan switch from explicit config or strict execution contract. */

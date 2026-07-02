@@ -120,7 +120,7 @@ function coerceDisplayValue(
   const maxStringChars = opts.maxStringChars ?? 160;
   const maxArrayEntries = opts.maxArrayEntries ?? 3;
 
-  if (value === null || value === undefined) {
+  if (value == null) {
     return undefined;
   }
   if (typeof value === "string") {
