@@ -46,16 +46,16 @@ function startLocalServer(port: number, oversize: boolean): http.Server {
  * untouched (e.g. module resolution during import).
  */
 function spyOnGoogleMeetFetch(port: number) {
+  const originalFetch = globalThis.fetch;
   return vi
     .spyOn(globalThis, "fetch")
     .mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("meet.googleapis.com")) {
-        const localUrl = `http://127.0.0.1:${port}/`;
-        return fetch(localUrl, init);
+        return originalFetch(`http://127.0.0.1:${port}/`, init);
       }
       // Pass through non-Meet URLs (module resolution, etc.)
-      return fetch(input, init);
+      return originalFetch(input, init);
     });
 }
 
