@@ -5,12 +5,12 @@
  * It is only intended for CLI use, not browser environments.
  */
 
+import { readResponseTextLimited } from "openclaw/plugin-sdk/provider-http";
 import {
   parseOAuthAuthorizationInput,
   resolveOAuthTokenExpiresAt,
   resolveOAuthTokenLifetimeMs,
 } from "openclaw/plugin-sdk/provider-oauth-runtime";
-import { readResponseTextLimited } from "openclaw/plugin-sdk/provider-http";
 import { fetchWithSsrFGuard } from "openclaw/plugin-sdk/ssrf-runtime";
 import { resolveCodexAuthIdentity } from "./openai-chatgpt-auth-identity.js";
 import {
@@ -161,6 +161,8 @@ function formatTokenRequestError(
   return `OpenAI Codex token ${operation} error: ${error instanceof Error ? error.message : String(error)}`;
 }
 
+const TOKEN_ERROR_BODY_LIMIT_BYTES = 16 * 1024;
+
 async function postTokenForm(
   body: URLSearchParams,
   options: TokenRequestOptions = {},
@@ -179,6 +181,18 @@ async function postTokenForm(
     auditContext: "openai-chatgpt-oauth-token",
   });
   try {
+    // Cap error response bodies so an oversized provider payload cannot cause
+    // OOM.  Ok responses need the full body for JSON parsing downstream.
+    if (!response.ok) {
+      const text = await readResponseTextLimited(response, TOKEN_ERROR_BODY_LIMIT_BYTES).catch(
+        () => "",
+      );
+      return new Response(text, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    }
     const responseBody = await response.arrayBuffer();
     return new Response(responseBody, {
       status: response.status,
