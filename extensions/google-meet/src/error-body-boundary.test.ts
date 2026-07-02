@@ -22,6 +22,7 @@ vi.mock("openclaw/plugin-sdk/ssrf-runtime", async () => {
 });
 
 import { readProviderJsonResponse } from "openclaw/plugin-sdk/provider-http";
+import type { GoogleMeetSpace } from "./meet.js";
 
 const SEVENTEEN_MIB = 17 * 1024 * 1024;
 const PAYLOAD_OK = JSON.stringify({ name: "spaces/live-server-test" });
@@ -35,6 +36,27 @@ function startLocalServer(port: number, oversize: boolean): http.Server {
       res.end(PAYLOAD_OK);
     }
   });
+}
+
+/**
+ * Creates a fetch spy that routes Google Meet API URLs to a local TCP server.
+ * The actual Google Meet functions construct URLs like
+ * "https://meet.googleapis.com/v2/spaces/xyz" — this spy intercepts those
+ * and fetches from the local server instead, while leaving non-Meet fetches
+ * untouched (e.g. module resolution during import).
+ */
+function spyOnGoogleMeetFetch(port: number) {
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("meet.googleapis.com")) {
+        const localUrl = `http://127.0.0.1:${port}/`;
+        return fetch(localUrl, init);
+      }
+      // Pass through non-Meet URLs (module resolution, etc.)
+      return fetch(input, init);
+    });
 }
 
 describe("google-meet response body boundary", () => {
@@ -111,6 +133,59 @@ describe("google-meet response body boundary", () => {
         response,
         "Google Meet transport proof",
       );
+      expect(result.name).toBe("spaces/live-server-test");
+    } finally {
+      server.close();
+    }
+  });
+
+  it("rejects oversized response through Google Meet function via real SSRF-guard local transport", async () => {
+    const server = startLocalServer(0, true);
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const port = (server.address() as import("net").AddressInfo).port;
+
+    // Route meet.googleapis.com → local TCP server without mocking Response
+    const fetchSpy = spyOnGoogleMeetFetch(port);
+
+    try {
+      const { fetchGoogleMeetSpace: fetchFn } = await import("./meet.js");
+      const error = await fetchFn({
+        accessToken: "fake-token",
+        meeting: "abc-defg",
+      }).catch((e: unknown) => e);
+
+      const msg = error instanceof Error ? error.message : String(error);
+      expect(msg).toContain("Google Meet spaces.get");
+      expect(msg).toContain("exceeds");
+      // Verify the request actually went through our local server
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("meet.googleapis.com"),
+        expect.anything(),
+      );
+    } finally {
+      server.close();
+    }
+  });
+
+  it("passes normal response through Google Meet function via real SSRF-guard local transport", async () => {
+    const server = startLocalServer(0, false);
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const port = (server.address() as import("net").AddressInfo).port;
+
+    // Route meet.googleapis.com → local TCP server without mocking Response
+    spyOnGoogleMeetFetch(port);
+
+    try {
+      const { fetchGoogleMeetSpace: fetchFn } = await import("./meet.js");
+      const result: GoogleMeetSpace = await fetchFn({
+        accessToken: "fake-token",
+        meeting: "live-test",
+      });
+
       expect(result.name).toBe("spaces/live-server-test");
     } finally {
       server.close();
