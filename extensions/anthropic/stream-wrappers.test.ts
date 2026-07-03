@@ -188,6 +188,28 @@ describe("anthropic stream wrappers", () => {
   it("ignores unresolved auto fast mode at the provider boundary", () => {
     expect(resolveAnthropicFastMode({ fastMode: "auto" })).toBeUndefined();
   });
+
+  it("does not inject 1M-context beta headers for claude-sonnet-50 (prefix boundary check)", () => {
+    // claude-sonnet-5 is GA 1M, but claude-sonnet-50 must not match the prefix.
+    // Without isNextCharDigit guard, startsWith("claude-sonnet-5") matches both.
+    const captured: { headers?: Record<string, string>; payload?: Record<string, unknown> } = {};
+    const wrapped = wrapAnthropicProviderStream({
+      streamFn: createPayloadCapturingBaseStream(captured),
+      modelId: "claude-sonnet-50",
+      extraParams: { context1m: true, serviceTier: "auto" },
+    } as never);
+
+    void wrapped?.(
+      { provider: "anthropic", api: "anthropic-messages", id: "claude-sonnet-50" } as never,
+      {} as never,
+      { apiKey: "sk-ant-api-123" } as never,
+    );
+
+    // Beta header wrapper should not be composed for claude-sonnet-50
+    // (isAnthropic1MModel returns false), but service tier still applies.
+    expect(captured.headers).toBeUndefined();
+    expect(captured.payload).toMatchObject({ service_tier: "auto" });
+  });
 });
 
 describe("createAnthropicThinkingPrefillWrapper", () => {

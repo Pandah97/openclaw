@@ -686,6 +686,29 @@ describe("resolveContextTokensForModel", () => {
     expect(result).toBe(200_000);
   });
 
+  it("does not force 1M context for claude-sonnet-50 (prefix boundary check)", () => {
+    // claude-sonnet-5 is GA 1M, but claude-sonnet-50 must not match the prefix.
+    // Without isNextCharDigit guard, startsWith("claude-sonnet-5") matches both.
+    const result = resolveContextTokensForModel({
+      cfg: {
+        agents: {
+          defaults: {
+            models: {
+              "anthropic/claude-sonnet-50": {
+                params: { context1m: true },
+              },
+            },
+          },
+        },
+      },
+      provider: "anthropic",
+      model: "claude-sonnet-50",
+      fallbackContextTokens: 200_000,
+      allowAsyncLoad: false,
+    });
+    expect(result).toBe(200_000);
+  });
+
   it("prefers per-model contextTokens config over contextWindow", () => {
     const result = resolveContextTokensForModel({
       cfg: {

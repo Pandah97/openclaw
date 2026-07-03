@@ -144,6 +144,11 @@ function resolveModelFamilyId(modelId: string): string {
   return normalized.includes("/") ? (normalized.split("/").at(-1) ?? normalized) : normalized;
 }
 
+/** Reject prefix matches where the next character is a digit (e.g. sonnet-5 vs sonnet-50). */
+function isNextCharDigit(id: string, prefix: string): boolean {
+  return /\d/u.test(id[prefix.length] ?? "");
+}
+
 export function resolveAnthropicFixedContextWindow(
   provider: string,
   model: string,
@@ -158,7 +163,11 @@ export function resolveAnthropicFixedContextWindow(
   if (provider !== "anthropic" && provider !== "anthropic-vertex" && provider !== "claude-cli") {
     return undefined;
   }
-  if (!ANTHROPIC_GA_1M_MODEL_PREFIXES.some((prefix) => modelId.startsWith(prefix))) {
+  if (
+    !ANTHROPIC_GA_1M_MODEL_PREFIXES.some(
+      (prefix) => modelId.startsWith(prefix) && !isNextCharDigit(modelId, prefix),
+    )
+  ) {
     return undefined;
   }
   return provider === "anthropic-vertex"

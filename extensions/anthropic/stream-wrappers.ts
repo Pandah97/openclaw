@@ -48,12 +48,19 @@ const OPENCLAW_OAUTH_ANTHROPIC_BETAS = [
 type AnthropicServiceTier = "auto" | "standard_only";
 type DynamicFastMode = boolean | (() => boolean | undefined);
 
+/** Reject prefix matches where the next character is a digit (e.g. sonnet-5 vs sonnet-50). */
+function isNextCharDigit(id: string, prefix: string): boolean {
+  return /\d/u.test(id[prefix.length] ?? "");
+}
+
 function isAnthropic1MModel(modelId: string): boolean {
   if (resolveClaudeFable5ModelIdentity({ id: modelId }) !== undefined) {
     return true;
   }
   const normalized = normalizeLowercaseStringOrEmpty(modelId);
-  return ANTHROPIC_GA_1M_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+  return ANTHROPIC_GA_1M_MODEL_PREFIXES.some(
+    (prefix) => normalized.startsWith(prefix) && !isNextCharDigit(normalized, prefix),
+  );
 }
 
 function parseHeaderList(value: unknown): string[] {
