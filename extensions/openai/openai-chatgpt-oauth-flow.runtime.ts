@@ -190,7 +190,7 @@ async function postTokenForm(
           ),
       },
     );
-    return new Response(responseBody, {
+    return new Response(new Uint8Array(responseBody), {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
