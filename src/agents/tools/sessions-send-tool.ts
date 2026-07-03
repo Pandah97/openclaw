@@ -24,6 +24,7 @@ import { annotateInterSessionPromptText } from "../../sessions/input-provenance.
 import { isCronRunSessionKey, parseAgentSessionKey } from "../../sessions/session-key-utils.js";
 import { SESSION_LABEL_MAX_LENGTH } from "../../sessions/session-label.js";
 import { stripFormattedReasoningMessage } from "../../shared/text/formatted-reasoning-message.js";
+import { deliveryContextFromSession } from "../../utils/delivery-context.shared.js";
 import {
   type GatewayMessageChannel,
   INTERNAL_MESSAGE_CHANNEL,
@@ -577,10 +578,12 @@ export function createSessionsSendTool(opts?: {
               }).catch(() => undefined)
             : undefined;
 
-      // Load the target session entry to derive the delivery channel from
-      // the resolved session metadata instead of hardcoding INTERNAL_MESSAGE_CHANNEL.
+      // Resolve the delivery channel via the shared normalization helper that
+      // considers route, channel, lastChannel, and deliveryContext fields.
       const targetSessionEntry = loadSessionEntryByKey(resolvedKey);
-      const resolvedChannel = targetSessionEntry?.channel?.trim() || INTERNAL_MESSAGE_CHANNEL;
+      const resolvedChannel =
+        (targetSessionEntry && deliveryContextFromSession(targetSessionEntry)?.channel?.trim()) ||
+        INTERNAL_MESSAGE_CHANNEL;
 
       const agentMessageContext = buildAgentToAgentMessageContext({
         requesterSessionKey: opts?.agentSessionKey,
