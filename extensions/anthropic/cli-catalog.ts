@@ -7,6 +7,7 @@ import { CLAUDE_CLI_BACKEND_ID, CLAUDE_CLI_DEFAULT_ALLOWLIST_REFS } from "./cli-
 
 // Claude CLI auth is subscription-backed, so catalog rows only need picker metadata.
 const CLAUDE_CLI_DEFAULT_CONTEXT_WINDOW = 200_000;
+const CLAUDE_CLI_1M_CONTEXT_MODEL_IDS = new Set(["claude-opus-4-8", "claude-sonnet-5"]);
 
 const CLAUDE_CLI_MODEL_LABELS: Record<string, string> = {
   "claude-opus-4-8": "Claude Opus 4.8 (Claude CLI)",
@@ -53,7 +54,9 @@ export function buildClaudeCliCatalogEntries(): ModelCatalogEntry[] {
       reasoning: true,
       input: ["text", "image"],
       mediaInput: resolveClaudeCliImageMediaInput(id),
-      contextWindow: id === "claude-opus-4-8" ? 1_048_576 : CLAUDE_CLI_DEFAULT_CONTEXT_WINDOW,
+      contextWindow: CLAUDE_CLI_1M_CONTEXT_MODEL_IDS.has(id)
+        ? 1_048_576
+        : CLAUDE_CLI_DEFAULT_CONTEXT_WINDOW,
     };
   });
 }

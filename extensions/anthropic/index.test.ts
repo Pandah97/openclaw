@@ -8,6 +8,7 @@ import {
   registerSingleProviderPlugin,
 } from "openclaw/plugin-sdk/plugin-test-runtime";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildClaudeCliCatalogEntries } from "./cli-catalog.js";
 
 const { readClaudeCliCredentialsForSetupMock, readClaudeCliCredentialsForRuntimeMock } = vi.hoisted(
   () => ({
@@ -1026,5 +1027,15 @@ describe("anthropic provider replay hooks", () => {
         },
       },
     ]);
+  });
+
+  it("builds Claude CLI catalog entries with correct context windows for 1M models", () => {
+    const entries = buildClaudeCliCatalogEntries();
+    const sonnet5Entry = entries.find((e) => e.id === "claude-sonnet-5");
+    expect(sonnet5Entry).toBeDefined();
+    expect(sonnet5Entry?.contextWindow).toBe(1_048_576);
+    const opus48Entry = entries.find((e) => e.id === "claude-opus-4-8");
+    expect(opus48Entry).toBeDefined();
+    expect(opus48Entry?.contextWindow).toBe(1_048_576);
   });
 });
