@@ -19,6 +19,7 @@ const GOOGLE_MEET_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_MEET_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_MEET_TOKEN_HOST = "oauth2.googleapis.com";
 const GOOGLE_MEET_DEFAULT_TOKEN_LIFETIME_SECONDS = 3600;
+const GOOGLE_OAUTH_TOKEN_JSON_MAX_BYTES = 256 * 1024;
 const GOOGLE_MEET_SCOPES = [
   "https://www.googleapis.com/auth/meetings.space.created",
   "https://www.googleapis.com/auth/meetings.space.readonly",
@@ -96,7 +97,7 @@ async function executeGoogleTokenRequest(body: URLSearchParams): Promise<GoogleM
       refresh_token?: string;
       scope?: string;
       token_type?: string;
-    }>(response, "Google OAuth token");
+    }>(response, "Google OAuth token", { maxBytes: GOOGLE_OAUTH_TOKEN_JSON_MAX_BYTES });
     const accessToken = payload.access_token?.trim();
     if (!accessToken) {
       throw new Error("Google OAuth token response was missing access_token");

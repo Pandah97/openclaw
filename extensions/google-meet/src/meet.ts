@@ -372,8 +372,10 @@ export async function createGoogleMeetSpace(params: {
   accessToken: string;
   config?: GoogleMeetSpaceConfig;
 }): Promise<GoogleMeetCreateSpaceResult> {
-  const hasConfig = Boolean(params.config && Object.keys(params.config).length > 0);
-  const body = hasConfig ? JSON.stringify({ config: params.config }) : "{}";
+  const body =
+    params.config && Object.keys(params.config).length > 0
+      ? JSON.stringify({ config: params.config })
+      : "{}";
   const { response, release } = await fetchWithSsrFGuard({
     url: `${GOOGLE_MEET_API_BASE_URL}/spaces`,
     init: {
@@ -393,9 +395,10 @@ export async function createGoogleMeetSpace(params: {
       throw await googleApiError({
         response,
         prefix: "Google Meet spaces.create",
-        scopes: hasConfig
-          ? [GOOGLE_MEET_SPACE_CREATED_SCOPE, GOOGLE_MEET_SPACE_SETTINGS_SCOPE]
-          : [GOOGLE_MEET_SPACE_CREATED_SCOPE],
+        scopes:
+          params.config && Object.keys(params.config).length > 0
+            ? [GOOGLE_MEET_SPACE_CREATED_SCOPE, GOOGLE_MEET_SPACE_SETTINGS_SCOPE]
+            : [GOOGLE_MEET_SPACE_CREATED_SCOPE],
       });
     }
     const payload = await readProviderJsonResponse<GoogleMeetSpace>(
