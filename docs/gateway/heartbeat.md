@@ -84,6 +84,7 @@ If you want a heartbeat to do something very specific (e.g. "check Gmail PubSub 
 
 - If nothing needs attention, reply with **`HEARTBEAT_OK`**.
 - Heartbeat runs may instead call `heartbeat_respond` with `notify: false` for no visible update, or `notify: true` plus `notificationText` for an alert. When present, the structured tool response takes precedence over the text fallback.
+- On the text-fallback path (e.g. models that do not support tool calling), append **`notify=false`** as a standalone line at the end of the reply to signal a quiet heartbeat ack. OpenClaw strips the marker and suppresses delivery if the remaining content is empty; otherwise the remaining text is delivered silently (no notification sound on supported channels). A literal `notify=false` in the middle of a sentence is preserved.
 - During heartbeat runs, OpenClaw treats `HEARTBEAT_OK` as an ack when it appears at the **start or end** of the reply. The token is stripped and the reply is dropped if the remaining content is **≤ `ackMaxChars`** (default: 300).
 - If `HEARTBEAT_OK` appears in the **middle** of a reply, it is not treated specially.
 - For alerts, **do not** include `HEARTBEAT_OK`; return only the alert text.
