@@ -789,8 +789,6 @@ export async function buildSessionEntry(
       opts.generatedByCronRun ?? sessionStoreClassification?.generatedByCronRun ?? false;
     const allowArchiveContentCronClassification =
       isUsageCountedSessionArchiveTranscriptPath(absPath);
-    const sessionStoreAlreadyClassifiedCron =
-      sessionStoreClassification?.generatedByCronRun === true;
     for (let jsonlIdx = 0, lineStart = 0; lineStart <= raw.length; jsonlIdx++) {
       await yieldSessionEntryParseIfNeeded(jsonlIdx, parseYieldEveryLines);
       const newlineIndex = raw.indexOf("\n", lineStart);
