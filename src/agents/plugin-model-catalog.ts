@@ -76,7 +76,9 @@ export function listPluginModelCatalogRelativePaths(agentDir: string): string[] 
         .filter(isPluginModelCatalogRelativePath)
         .toSorted((left, right) => left.localeCompare(right));
     } catch {
-      if (attempt > 0) return [];
+      if (attempt > 0) {
+        return [];
+      }
     }
   }
 }
