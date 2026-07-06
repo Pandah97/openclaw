@@ -66,17 +66,19 @@ export function decodePluginModelCatalogRelativePathPluginId(
 /** Lists deterministic generated catalog paths present in an agent profile. */
 export function listPluginModelCatalogRelativePaths(agentDir: string): string[] {
   const pluginsDir = path.join(agentDir, "plugins");
-  let pluginDirs: Array<import("node:fs").Dirent>;
-  try {
-    pluginDirs = readdirSync(pluginsDir, { withFileTypes: true });
-  } catch {
-    return [];
+  // Retry once on FsSafeError (directory changed during operation) which is a
+  // transient race with concurrent plugin catalog writes.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return readdirSync(pluginsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => path.join("plugins", entry.name, PLUGIN_MODEL_CATALOG_FILE))
+        .filter(isPluginModelCatalogRelativePath)
+        .toSorted((left, right) => left.localeCompare(right));
+    } catch {
+      if (attempt > 0) return [];
+    }
   }
-  return pluginDirs
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join("plugins", entry.name, PLUGIN_MODEL_CATALOG_FILE))
-    .filter(isPluginModelCatalogRelativePath)
-    .toSorted((left, right) => left.localeCompare(right));
 }
 
 /** Lists existing generated catalog files with decoded plugin ownership. */
