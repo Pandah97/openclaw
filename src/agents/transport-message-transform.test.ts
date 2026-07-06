@@ -260,6 +260,36 @@ describe("transformTransportMessages synthetic tool-result policy", () => {
     });
   });
 
+  it("preserves Sonnet 5 thinking only for the same Anthropic model", () => {
+    const message = {
+      role: "assistant",
+      provider: "anthropic",
+      api: "anthropic-messages",
+      model: "claude-sonnet-5",
+      stopReason: "stop",
+      timestamp: Date.now(),
+      content: [
+        {
+          type: "thinking",
+          thinking: "",
+          thinkingSignature: "sig_sonnet_5",
+        },
+      ],
+    } as Context["messages"][number];
+
+    const preserved = transformTransportMessages(
+      [message],
+      makeModel("anthropic-messages", "anthropic-vertex", "claude-sonnet-5"),
+    );
+    expect(preserved[0]).toMatchObject({ content: message.content });
+
+    const dropped = transformTransportMessages(
+      [message],
+      makeModel("anthropic-messages", "anthropic", "claude-opus-4-8"),
+    );
+    expect(dropped[0]).toMatchObject({ content: [] });
+  });
+
   it("normalizes malformed assistant content before transport conversion", () => {
     const objectContentMessages = [
       {

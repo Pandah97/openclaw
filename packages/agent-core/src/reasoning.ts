@@ -1,13 +1,15 @@
 import {
-  resolveClaudeFable5ModelIdentity,
+  requiresClaudeMandatoryAdaptiveThinking,
+  resolveClaudeSonnet5ModelIdentity,
   type Model,
   type SimpleStreamOptions,
 } from "../../llm-core/src/index.js";
 import type { ThinkingLevel } from "./types.js";
 
-type EnabledThinkingLevel = NonNullable<SimpleStreamOptions["reasoning"]>;
+type StreamReasoningLevel = NonNullable<SimpleStreamOptions["reasoning"]>;
 
-const ENABLED_THINKING_LEVELS = new Set<EnabledThinkingLevel>([
+const STREAM_REASONING_LEVELS = new Set<StreamReasoningLevel>([
+  "off",
   "minimal",
   "low",
   "medium",
@@ -16,8 +18,8 @@ const ENABLED_THINKING_LEVELS = new Set<EnabledThinkingLevel>([
   "max",
 ]);
 
-function isEnabledThinkingLevel(value: unknown): value is EnabledThinkingLevel {
-  return ENABLED_THINKING_LEVELS.has(value as EnabledThinkingLevel);
+function isStreamReasoningLevel(value: unknown): value is StreamReasoningLevel {
+  return STREAM_REASONING_LEVELS.has(value as StreamReasoningLevel);
 }
 
 export function resolveAgentReasoningOption(
@@ -30,8 +32,14 @@ export function resolveAgentReasoningOption(
   const offFallback =
     model.thinkingLevelMap?.off ??
     ((model.api === "anthropic-messages" || model.api === "bedrock-converse-stream") &&
-    resolveClaudeFable5ModelIdentity(model)
+    requiresClaudeMandatoryAdaptiveThinking(model)
       ? "low"
       : undefined);
-  return isEnabledThinkingLevel(offFallback) ? offFallback : undefined;
+  if (isStreamReasoningLevel(offFallback)) {
+    return offFallback;
+  }
+  return model.api === "anthropic-messages" &&
+    resolveClaudeSonnet5ModelIdentity(model) !== undefined
+    ? "off"
+    : undefined;
 }

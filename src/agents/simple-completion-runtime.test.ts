@@ -767,4 +767,51 @@ describe("completeWithPreparedSimpleCompletionModel", () => {
       },
     );
   });
+
+  it.each([
+    { id: "claude-sonnet-5", canonicalModelId: undefined },
+    { id: "production-claude", canonicalModelId: "claude-mythos-preview" },
+  ])("preserves explicit off for $id Claude simple completions", async (testCase) => {
+    const model = {
+      provider: "anthropic",
+      id: testCase.id,
+      name: testCase.id,
+      api: "anthropic-messages",
+      baseUrl: "https://api.anthropic.com",
+      reasoning: true,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 1_000_000,
+      maxTokens: 128_000,
+      ...(testCase.canonicalModelId
+        ? { params: { canonicalModelId: testCase.canonicalModelId } }
+        : {}),
+    } satisfies Model<"anthropic-messages">;
+
+    await completeWithPreparedSimpleCompletionModel({
+      model,
+      auth: {
+        apiKey: "sk-test",
+        source: "env:ANTHROPIC_API_KEY",
+        mode: "api-key",
+      },
+      context: {
+        messages: [{ role: "user", content: "pong", timestamp: 1 }],
+      },
+      options: {
+        reasoning: "off",
+      },
+    });
+
+    expect(hoisted.completeMock).toHaveBeenCalledWith(
+      model,
+      {
+        messages: [{ role: "user", content: "pong", timestamp: 1 }],
+      },
+      {
+        reasoning: "off",
+        apiKey: "sk-test",
+      },
+    );
+  });
 });

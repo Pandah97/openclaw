@@ -50,8 +50,7 @@ describe("Claude model contracts", () => {
   it("recognizes claude-sonnet-5 as GA 1M model", () => {
     expect(supportsClaudeAdaptiveThinking({ id: "claude-sonnet-5" })).toBe(true);
     expect(supportsClaudeNativeMaxEffort({ id: "claude-sonnet-5" })).toBe(true);
-    expect(supportsClaudeAdaptiveThinking({ id: "claude-sonnet-5.0" })).toBe(true);
-    expect(supportsClaudeAdaptiveThinking({ id: "claude-sonnet-5@20260601" })).toBe(true);
+    expect(supportsClaudeNativeXhighEffort({ id: "anthropic.claude-sonnet-5" })).toBe(true);
   });
 
   it("does not classify later numeric model versions as supported aliases", () => {

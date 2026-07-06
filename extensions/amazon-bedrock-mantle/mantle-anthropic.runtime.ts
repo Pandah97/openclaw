@@ -4,7 +4,12 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import type { StreamFn } from "openclaw/plugin-sdk/agent-core";
-import { stream, type Model, type SimpleStreamOptions } from "openclaw/plugin-sdk/llm";
+import {
+  stream,
+  type Model,
+  type SimpleStreamOptions,
+  type ThinkingLevel,
+} from "openclaw/plugin-sdk/llm";
 
 const MANTLE_ANTHROPIC_BETA = "fine-grained-tool-streaming-2025-05-14";
 type AnthropicOptions = ConstructorParameters<typeof Anthropic>[0];
@@ -42,12 +47,16 @@ function isClaudeMythosPreviewModel(model: Model): boolean {
 function resolveMantleReasoning(
   model: Model,
   options: SimpleStreamOptions | undefined,
-): NonNullable<SimpleStreamOptions["reasoning"]> | undefined {
+): ThinkingLevel | undefined {
   if (requiresDefaultSampling(model.id)) {
     return undefined;
   }
-  const reasoning = options?.reasoning ?? (isClaudeMythosPreviewModel(model) ? "high" : undefined);
-  if (!isClaudeMythosPreviewModel(model)) {
+  const mythosPreview = isClaudeMythosPreviewModel(model);
+  const reasoning = options?.reasoning ?? (mythosPreview ? "high" : undefined);
+  if (reasoning === "off") {
+    return mythosPreview ? "low" : undefined;
+  }
+  if (!mythosPreview) {
     return reasoning;
   }
   if (reasoning === "minimal") {
@@ -89,7 +98,7 @@ function buildMantleAnthropicBaseOptions(
 function adjustMaxTokensForThinking(
   baseMaxTokens: number,
   modelMaxTokens: number,
-  reasoningLevel: NonNullable<SimpleStreamOptions["reasoning"]>,
+  reasoningLevel: ThinkingLevel,
   customBudgets?: SimpleStreamOptions["thinkingBudgets"],
 ): { maxTokens: number; thinkingBudget: number } {
   const defaultBudgets = {

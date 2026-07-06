@@ -1,10 +1,16 @@
 // Model-bound thinking cannot be exposed or replayed after a model switch.
-import { resolveClaudeFable5ModelIdentity, resolveClaudeModelIdentity } from "@openclaw/llm-core";
+import {
+  requiresClaudeMandatoryAdaptiveThinking,
+  resolveClaudeFable5ModelIdentity,
+  resolveClaudeSonnet5ModelIdentity,
+} from "@openclaw/llm-core";
 import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
 export {
+  requiresClaudeMandatoryAdaptiveThinking,
   resolveClaudeFable5ModelIdentity,
   resolveClaudeModelIdentity,
   resolveClaudeNativeThinkingLevelMap,
+  resolveClaudeSonnet5ModelIdentity,
   supportsClaudeAdaptiveThinking,
   supportsClaudeNativeMaxEffort,
   supportsClaudeNativeXhighEffort,
@@ -49,6 +55,50 @@ export function usesClaudeFable5MessagesContract(model: {
   );
 }
 
+export function usesClaudeSonnet5MessagesContract(model: {
+  id?: string;
+  params?: Record<string, unknown>;
+  api?: string;
+}): boolean {
+  return (
+    normalizeApi(model.api) === "anthropic-messages" &&
+    resolveClaudeSonnet5ModelIdentity(model) !== undefined
+  );
+}
+
+export function defaultsClaudeAdaptiveThinking(model: {
+  id?: string;
+  params?: Record<string, unknown>;
+  api?: string;
+}): boolean {
+  return requiresClaudeAdaptiveThinking(model) || usesClaudeSonnet5MessagesContract(model);
+}
+
+export function buffersClaudeRefusalEvents(model: {
+  id?: string;
+  params?: Record<string, unknown>;
+  api?: string;
+}): boolean {
+  return usesClaudeFable5MessagesContract(model) || usesClaudeSonnet5MessagesContract(model);
+}
+
+export function applyClaudeSonnet5RequestContract(
+  params: Record<string, unknown>,
+  model: {
+    id?: string;
+    params?: Record<string, unknown>;
+    api?: string;
+  },
+): void {
+  if (!usesClaudeSonnet5MessagesContract(model)) {
+    return;
+  }
+  delete params.temperature;
+  delete params.top_p;
+  delete params.top_k;
+  delete params.service_tier;
+}
+
 export function requiresClaudeAdaptiveThinking(model: {
   id?: string;
   params?: Record<string, unknown>;
@@ -57,21 +107,22 @@ export function requiresClaudeAdaptiveThinking(model: {
   if (normalizeApi(model.api) !== "anthropic-messages") {
     return false;
   }
-  const modelId = resolveClaudeModelIdentity(model);
-  return (
-    resolveClaudeFable5ModelIdentity(model) !== undefined ||
-    /(?:^|-)claude-mythos-preview(?=$|[^a-z0-9])/.test(modelId)
-  );
+  return requiresClaudeMandatoryAdaptiveThinking(model);
 }
 
-function resolveReplayFableIdentity(ref: ReplayModelRef): string | undefined {
+function resolveReplayModelBoundIdentity(ref: ReplayModelRef): string | undefined {
   if (normalizeApi(ref.api) !== "anthropic-messages") {
     return undefined;
   }
-  if (hasConcreteResponseModel(ref)) {
-    return resolveClaudeFable5ModelIdentity({ id: ref.responseModelId });
+  const modelRef = hasConcreteResponseModel(ref)
+    ? { id: ref.responseModelId }
+    : { id: ref.modelId, params: ref.modelParams };
+  const fableIdentity = resolveClaudeFable5ModelIdentity(modelRef);
+  if (fableIdentity) {
+    return `fable:${fableIdentity}`;
   }
-  return resolveClaudeFable5ModelIdentity({ id: ref.modelId, params: ref.modelParams });
+  const sonnetIdentity = resolveClaudeSonnet5ModelIdentity(modelRef);
+  return sonnetIdentity ? `sonnet:${sonnetIdentity}` : undefined;
 }
 
 export function resolveModelBoundThinkingReplayMode(params: {
@@ -80,8 +131,8 @@ export function resolveModelBoundThinkingReplayMode(params: {
 }): "default" | "preserve" | "drop" {
   const sourceApi = normalizeApi(params.source.api);
   const targetApi = normalizeApi(params.target.api);
-  const sourceIdentity = resolveReplayFableIdentity(params.source);
-  const targetIdentity = resolveReplayFableIdentity(params.target);
+  const sourceIdentity = resolveReplayModelBoundIdentity(params.source);
+  const targetIdentity = resolveReplayModelBoundIdentity(params.target);
   const sameRoute =
     normalizeLowercaseStringOrEmpty(params.source.provider) ===
       normalizeLowercaseStringOrEmpty(params.target.provider) &&

@@ -555,6 +555,9 @@ export function buildGoogleSimpleThinking<T extends GoogleApiType>(
   if (!options?.reasoning) {
     return { enabled: false };
   }
+  if (options.reasoning === "off") {
+    return { enabled: false };
+  }
 
   const clampedReasoning = clampThinkingLevel(model, options.reasoning);
   const effort = (

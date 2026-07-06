@@ -6,6 +6,7 @@ import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import { SYSTEM_PROMPT_CACHE_BOUNDARY } from "../utils/system-prompt-cache-boundary.js";
 import {
   buildGoogleGenerateContentParams,
+  buildGoogleSimpleThinking,
   consumeGoogleGenerateContentStream,
 } from "./google-shared.js";
 
@@ -248,5 +249,11 @@ describe("buildGoogleGenerateContentParams", () => {
 
     expect(params.config?.systemInstruction).toBe("Stable\nDynamic");
     expect(JSON.stringify(params)).not.toContain("OPENCLAW_CACHE_BOUNDARY");
+  });
+});
+
+describe("buildGoogleSimpleThinking", () => {
+  it("disables thinking for explicit off", () => {
+    expect(buildGoogleSimpleThinking(model, { reasoning: "off" })).toEqual({ enabled: false });
   });
 });

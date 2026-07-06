@@ -46,12 +46,16 @@ import {
   usesFoundryBearerAuth,
 } from "./anthropic-auth-headers.js";
 import {
+  applyClaudeSonnet5RequestContract,
+  buffersClaudeRefusalEvents,
+  defaultsClaudeAdaptiveThinking,
   resolveClaudeNativeThinkingLevelMap,
   requiresClaudeAdaptiveThinking,
   supportsClaudeAdaptiveThinking,
   supportsClaudeNativeMaxEffort,
   supportsClaudeNativeXhighEffort,
   usesClaudeFable5MessagesContract,
+  usesClaudeSonnet5MessagesContract,
 } from "./anthropic-model-contract.js";
 import { applyAnthropicRefusal } from "./anthropic-refusal.js";
 import {
@@ -512,9 +516,9 @@ export const streamAnthropic: StreamFunction<"anthropic-messages", AnthropicOpti
       stopReason: "stop",
       timestamp: Date.now(),
     };
-    // Fable classifiers can refuse after partial generation, so no event is
-    // safe to expose until the terminal stop reason is known.
-    const refusalBuffer = usesClaudeFable5MessagesContract(model)
+    // Modern Claude classifiers can refuse after partial generation, so no
+    // event is safe to expose until the terminal stop reason is known.
+    const refusalBuffer = buffersClaudeRefusalEvents(model)
       ? createDeferredEventBuffer<AssistantMessageEvent>(stream, () =>
           notifyLlmRequestActivity(options?.signal),
         )
@@ -571,6 +575,7 @@ export const streamAnthropic: StreamFunction<"anthropic-messages", AnthropicOpti
       if (nextParams !== undefined) {
         params = nextParams as MessageCreateParamsStreaming;
       }
+      applyClaudeSonnet5RequestContract(params as unknown as Record<string, unknown>, model);
       const requestOptions = {
         ...(options?.signal ? { signal: options.signal } : {}),
         ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
@@ -925,9 +930,14 @@ export const streamAnthropic: StreamFunction<"anthropic-messages", AnthropicOpti
 function normalizeAnthropicToolChoice(
   model: Model<"anthropic-messages">,
   toolChoice: NonNullable<AnthropicOptions["toolChoice"]>,
+  thinkingEnabled: boolean | undefined,
 ): AnthropicProjectedToolChoice {
+  const thinkingActive =
+    requiresClaudeAdaptiveThinking(model) ||
+    thinkingEnabled === true ||
+    (thinkingEnabled !== false && defaultsClaudeAdaptiveThinking(model));
   if (
-    requiresClaudeAdaptiveThinking(model) &&
+    thinkingActive &&
     (toolChoice === "any" || (typeof toolChoice === "object" && toolChoice.type === "tool"))
   ) {
     return { type: "auto" as const };
@@ -1001,10 +1011,25 @@ export const streamSimpleAnthropic: StreamFunction<"anthropic-messages", SimpleS
   const base = buildBaseOptions(model, options, apiKey);
   if (!options?.reasoning) {
     const mandatoryAdaptiveThinking = requiresClaudeAdaptiveThinking(model);
+    const sonnet5DefaultThinking = usesClaudeSonnet5MessagesContract(model);
     return streamAnthropic(model, context, {
       ...base,
-      thinkingEnabled: mandatoryAdaptiveThinking,
+      ...(mandatoryAdaptiveThinking
+        ? { thinkingEnabled: true }
+        : sonnet5DefaultThinking
+          ? {}
+          : { thinkingEnabled: false }),
       ...(mandatoryAdaptiveThinking ? { effort: "high" as const } : {}),
+    } satisfies AnthropicOptions);
+  }
+
+  if (
+    options.reasoning === "off" &&
+    (!requiresClaudeAdaptiveThinking(model) || usesClaudeSonnet5MessagesContract(model))
+  ) {
+    return streamAnthropic(model, context, {
+      ...base,
+      thinkingEnabled: false,
     } satisfies AnthropicOptions);
   }
 
@@ -1021,10 +1046,11 @@ export const streamSimpleAnthropic: StreamFunction<"anthropic-messages", SimpleS
 
   // Undefined means the caller did not request an output cap; let the helper use the model cap.
   // Do not coerce to 0 here, or the thinking budget would become the entire max_tokens value.
+  const tokenReasoningLevel = options.reasoning === "off" ? "low" : options.reasoning;
   const adjusted = adjustMaxTokensForThinking(
     base.maxTokens,
     model.maxTokens,
-    options.reasoning,
+    tokenReasoningLevel,
     options.thinkingBudgets,
   );
 
@@ -1211,7 +1237,10 @@ function buildParams(
   toolProjection?: AnthropicToolProjection;
 } {
   const fable5 = usesClaudeFable5MessagesContract(model);
-  const replayThinkingEnabled = fable5 || options?.thinkingEnabled === true;
+  const replayThinkingEnabled =
+    requiresClaudeAdaptiveThinking(model) ||
+    options?.thinkingEnabled === true ||
+    (options?.thinkingEnabled !== false && defaultsClaudeAdaptiveThinking(model));
   const { cacheControl } = getCacheControl(model, options?.cacheRetention);
   const system = buildAnthropicSystemBlocks(context.systemPrompt, isOAuthTokenResult, cacheControl);
   const compat = context.tools ? getAnthropicCompat(model) : undefined;
@@ -1317,7 +1346,11 @@ function buildParams(
   }
 
   if (options?.toolChoice) {
-    const normalizedToolChoice = normalizeAnthropicToolChoice(model, options.toolChoice);
+    const normalizedToolChoice = normalizeAnthropicToolChoice(
+      model,
+      options.toolChoice,
+      options.thinkingEnabled,
+    );
     const projectedToolChoice = toolProjection
       ? reconcileAnthropicToolChoice(normalizedToolChoice, toolProjection)
       : normalizedToolChoice;

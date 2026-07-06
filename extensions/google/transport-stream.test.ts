@@ -2105,6 +2105,20 @@ describe("google transport stream", () => {
     expect(params.generationConfig ?? {}).not.toHaveProperty("thinkingConfig");
   });
 
+  it("does not send thinkingConfig for explicit off", () => {
+    const params = buildGoogleGenerativeAiParams(
+      buildGeminiModel(),
+      {
+        messages: [{ role: "user", content: "hello", timestamp: 0 }],
+      } as never,
+      {
+        reasoning: "off",
+      },
+    );
+
+    expect(params.generationConfig ?? {}).not.toHaveProperty("thinkingConfig");
+  });
+
   it("omits disabled thinkingBudget=0 for Gemini 2.5 Pro direct payloads", () => {
     const params = buildGoogleGenerativeAiParams(
       buildGeminiModel(),

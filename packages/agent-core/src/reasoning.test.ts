@@ -36,7 +36,7 @@ describe("resolveAgentReasoningOption", () => {
   });
 
   it.each(["anthropic-messages", "bedrock-converse-stream"] as const)(
-    "maps explicit off to low for canonical Fable aliases on %s",
+    "maps explicit off to low for mandatory Claude aliases on %s",
     (api) => {
       expect(
         resolveAgentReasoningOption(
@@ -48,6 +48,28 @@ describe("resolveAgentReasoningOption", () => {
           "off",
         ),
       ).toBe("low");
+      expect(
+        resolveAgentReasoningOption(
+          makeModel(undefined, {
+            id: "production-deployment",
+            api,
+            params: { canonicalModelId: "claude-mythos-preview" },
+          }),
+          "off",
+        ),
+      ).toBe("low");
     },
   );
+
+  it("preserves explicit off for Claude Sonnet 5", () => {
+    expect(
+      resolveAgentReasoningOption(
+        makeModel(undefined, {
+          id: "production-deployment",
+          params: { canonicalModelId: "claude-sonnet-5" },
+        }),
+        "off",
+      ),
+    ).toBe("off");
+  });
 });

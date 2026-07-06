@@ -2,9 +2,12 @@ import {
   ANTHROPIC_OMITTED_REASONING_TEXT,
   ANTHROPIC_SERVER_SIDE_FALLBACK_BETA,
   CLAUDE_FABLE_5_FALLBACK_MODEL_COST,
+  applyClaudeSonnet5RequestContract,
   applyAnthropicFallbackBoundary,
   buildAnthropicServerSideFallbacks,
   applyAnthropicRefusal,
+  buffersClaudeRefusalEvents,
+  defaultsClaudeAdaptiveThinking,
   findActiveAnthropicToolTurnAssistantIndex,
   omitFoundryBearerCredentialHeaders,
   projectAnthropicTools,
@@ -20,6 +23,7 @@ import {
   supportsClaudeNativeMaxEffort,
   supportsClaudeNativeXhighEffort,
   usesClaudeFable5MessagesContract,
+  usesClaudeSonnet5MessagesContract,
   usesFoundryBearerAuth,
   type AnthropicOptions,
   type AnthropicPromptUsageSnapshot,
@@ -181,9 +185,14 @@ const EMPTY_ANTHROPIC_MESSAGES_FALLBACK_TEXT = ".";
 function normalizeAnthropicToolChoice(
   model: AnthropicTransportModel,
   toolChoice: NonNullable<AnthropicTransportOptions["toolChoice"]>,
+  thinkingEnabled: boolean | undefined,
 ): AnthropicProjectedToolChoice {
+  const thinkingActive =
+    requiresClaudeAdaptiveThinking(model) ||
+    thinkingEnabled === true ||
+    (thinkingEnabled !== false && defaultsClaudeAdaptiveThinking(model));
   if (
-    requiresClaudeAdaptiveThinking(model) &&
+    thinkingActive &&
     (toolChoice === "any" || (typeof toolChoice === "object" && toolChoice.type === "tool"))
   ) {
     return { type: "auto" as const };
@@ -971,7 +980,10 @@ function buildAnthropicParams(
   toolProjection?: AnthropicToolProjection;
 } {
   const fable5 = usesClaudeFable5MessagesContract(model);
-  const replayThinkingEnabled = fable5 || options?.thinkingEnabled === true;
+  const replayThinkingEnabled =
+    requiresClaudeAdaptiveThinking(model) ||
+    options?.thinkingEnabled === true ||
+    (options?.thinkingEnabled !== false && defaultsClaudeAdaptiveThinking(model));
   const maxTokens = resolveAnthropicMessagesMaxTokens({
     modelMaxTokens: model.maxTokens,
     requestedMaxTokens: options?.maxTokens,
@@ -1079,7 +1091,11 @@ function buildAnthropicParams(
     params.metadata = { user_id: options.metadata.user_id };
   }
   if (options?.toolChoice) {
-    const normalizedToolChoice = normalizeAnthropicToolChoice(model, options.toolChoice);
+    const normalizedToolChoice = normalizeAnthropicToolChoice(
+      model,
+      options.toolChoice,
+      options.thinkingEnabled,
+    );
     const projectedToolChoice = toolProjection
       ? reconcileAnthropicToolChoice(normalizedToolChoice, toolProjection)
       : normalizedToolChoice;
@@ -1125,10 +1141,20 @@ function resolveAnthropicTransportOptions(
     reasoning: options?.reasoning,
   };
   if (!options?.reasoning) {
-    resolved.thinkingEnabled = requiresClaudeAdaptiveThinking(model);
-    if (resolved.thinkingEnabled) {
+    const mandatoryAdaptiveThinking = requiresClaudeAdaptiveThinking(model);
+    if (mandatoryAdaptiveThinking) {
+      resolved.thinkingEnabled = true;
       resolved.effort = "high";
+    } else if (!usesClaudeSonnet5MessagesContract(model)) {
+      resolved.thinkingEnabled = false;
     }
+    return resolved;
+  }
+  if (
+    options.reasoning === "off" &&
+    (!requiresClaudeAdaptiveThinking(model) || usesClaudeSonnet5MessagesContract(model))
+  ) {
+    resolved.thinkingEnabled = false;
     return resolved;
   }
   if (supportsAdaptiveThinking(model)) {
@@ -1138,10 +1164,11 @@ function resolveAnthropicTransportOptions(
     >;
     return resolved;
   }
+  const tokenReasoningLevel = options.reasoning === "off" ? "low" : options.reasoning;
   const adjusted = adjustMaxTokensForThinking({
     baseMaxTokens,
     modelMaxTokens: reasoningModelMaxTokens,
-    reasoningLevel: options.reasoning,
+    reasoningLevel: tokenReasoningLevel,
     customBudgets: options.thinkingBudgets,
   });
   resolved.maxTokens = adjusted.maxTokens;
@@ -1167,9 +1194,9 @@ export function createAnthropicMessagesTransportStreamFn(): StreamFn {
         stopReason: "stop",
         timestamp: Date.now(),
       };
-      // Fable classifiers can refuse after partial generation, so no event is
-      // safe to expose until the terminal stop reason is known.
-      const refusalBuffer = usesClaudeFable5MessagesContract(model)
+      // Modern Claude classifiers can refuse after partial generation, so no
+      // event is safe to expose until the terminal stop reason is known.
+      const refusalBuffer = buffersClaudeRefusalEvents(model)
         ? createDeferredEventBuffer<unknown>(stream, () =>
             notifyLlmRequestActivity(options?.signal),
           )
@@ -1198,6 +1225,7 @@ export function createAnthropicMessagesTransportStreamFn(): StreamFn {
         if (nextParams !== undefined) {
           params = nextParams as Record<string, unknown>;
         }
+        applyClaudeSonnet5RequestContract(params, model);
         const anthropicStream = client.messages.stream(
           { ...params, stream: true },
           transportOptions.signal ? { signal: transportOptions.signal } : undefined,

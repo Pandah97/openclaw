@@ -33,7 +33,6 @@ const ANTHROPIC_GA_1M_MODEL_PREFIXES = [
   "claude-sonnet-4-6",
   "claude-sonnet-4.6",
   "claude-sonnet-5",
-  "claude-sonnet-5.0",
 ] as const;
 const OPENCLAW_DEFAULT_ANTHROPIC_BETAS = [
   "fine-grained-tool-streaming-2025-05-14",

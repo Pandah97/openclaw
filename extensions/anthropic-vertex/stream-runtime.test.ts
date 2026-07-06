@@ -214,19 +214,22 @@ describe("createAnthropicVertexStreamFn", () => {
     expect(streamTransportOptions(streamAnthropicMock).maxTokens).toBe(128000);
   });
 
-  it.each(["claude-opus-4-8", "claude-opus-4-7", "claude-fable-5", "claude-mythos-5"])(
-    "omits unsupported temperature for %s",
-    (modelId) => {
-      const { deps, streamAnthropicMock } = createStreamDeps();
-      const streamFn = createAnthropicVertexStreamFn("vertex-project", "us-east5", undefined, deps);
-      const model = makeModel({ id: modelId, maxTokens: 128000 });
+  it.each([
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-fable-5",
+    "claude-mythos-5",
+    "claude-sonnet-5",
+  ])("omits unsupported temperature for %s", (modelId) => {
+    const { deps, streamAnthropicMock } = createStreamDeps();
+    const streamFn = createAnthropicVertexStreamFn("vertex-project", "us-east5", undefined, deps);
+    const model = makeModel({ id: modelId, maxTokens: 128000 });
 
-      void streamFn(model, { messages: [] }, { temperature: 0.7 });
+    void streamFn(model, { messages: [] }, { temperature: 0.7 });
 
-      const transportOptions = streamTransportOptions(streamAnthropicMock);
-      expect(Object.hasOwn(transportOptions, "temperature")).toBe(false);
-    },
-  );
+    const transportOptions = streamTransportOptions(streamAnthropicMock);
+    expect(Object.hasOwn(transportOptions, "temperature")).toBe(false);
+  });
 
   it("preserves temperature for Vertex models that support custom sampling", () => {
     const { deps, streamAnthropicMock } = createStreamDeps();
@@ -251,6 +254,43 @@ describe("createAnthropicVertexStreamFn", () => {
       maxTokens: 128000,
     });
     expect(streamTransportOptions(streamAnthropicMock)).not.toHaveProperty("temperature");
+  });
+
+  it("inherits Sonnet 5's default adaptive thinking on Vertex", () => {
+    const { deps, streamAnthropicMock } = createStreamDeps();
+    const streamFn = createAnthropicVertexStreamFn("vertex-project", "us-east5", undefined, deps);
+    const model = makeModel({
+      id: "production-claude",
+      maxTokens: 128000,
+      params: { canonicalModelId: "claude-sonnet-5" },
+    });
+
+    void streamFn(model, { messages: [] }, { temperature: 0.7 });
+
+    const transportOptions = streamTransportOptions(streamAnthropicMock);
+    expect(transportOptions).not.toHaveProperty("thinkingEnabled");
+    expect(transportOptions).not.toHaveProperty("effort");
+    expect(transportOptions).not.toHaveProperty("temperature");
+  });
+
+  it.each([
+    { id: "production-claude", canonicalModelId: "claude-sonnet-5" },
+    { id: "claude-opus-4-8", canonicalModelId: undefined },
+  ])("disables $id thinking for explicit off", ({ id, canonicalModelId }) => {
+    const { deps, streamAnthropicMock } = createStreamDeps();
+    const streamFn = createAnthropicVertexStreamFn("vertex-project", "us-east5", undefined, deps);
+    const model = makeModel({
+      id,
+      maxTokens: 128000,
+      ...(canonicalModelId ? { params: { canonicalModelId } } : {}),
+    });
+
+    void streamFn(model, { messages: [] }, { reasoning: "off", temperature: 0.7 });
+
+    const transportOptions = streamTransportOptions(streamAnthropicMock);
+    expect(transportOptions.thinkingEnabled).toBe(false);
+    expect(transportOptions).not.toHaveProperty("effort");
+    expect(transportOptions).not.toHaveProperty("temperature");
   });
 
   it("uses Mythos 5's mandatory adaptive Vertex contract by default", () => {

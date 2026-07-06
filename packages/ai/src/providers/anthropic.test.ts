@@ -835,9 +835,26 @@ describe("Anthropic provider", () => {
   });
 
   it.each([
-    ["anthropic", "sk-ant-provider"],
-    ["anthropic-vertex", "vertex-token"],
-  ])("surfaces structured Anthropic streaming refusals for %s", async (provider, apiKey) => {
+    {
+      provider: "anthropic",
+      apiKey: "sk-ant-provider",
+      id: "claude-fable-5",
+      name: "Claude Fable 5",
+    },
+    {
+      provider: "anthropic-vertex",
+      apiKey: "vertex-token",
+      id: "claude-fable-5",
+      name: "Claude Fable 5",
+    },
+    {
+      provider: "anthropic",
+      apiKey: "sk-ant-provider",
+      id: "claude-sonnet-5",
+      name: "Claude Sonnet 5",
+    },
+  ])("surfaces structured Anthropic streaming refusals for $provider/$id", async (testCase) => {
+    const { provider, apiKey, id, name } = testCase;
     const client = {
       messages: {
         create: vi.fn(() => ({
@@ -880,8 +897,8 @@ describe("Anthropic provider", () => {
 
     const stream = streamAnthropic(
       makeAnthropicModel({
-        id: "claude-fable-5",
-        name: "Claude Fable 5",
+        id,
+        name,
         provider,
       }),
       { messages: [{ role: "user", content: "hello", timestamp: 0 }] },
@@ -1295,6 +1312,51 @@ describe("Anthropic provider", () => {
     expect(JSON.stringify(assistantMessage)).not.toContain("sig_model_bound");
   });
 
+  it("strips Sonnet 5 thinking when replay targets another Claude model", async () => {
+    let capturedPayload: unknown;
+    const stream = streamAnthropic(
+      makeAnthropicModel({
+        id: "claude-opus-4-8",
+        name: "Claude Opus 4.8",
+      }),
+      {
+        messages: [
+          { role: "user", content: "hello", timestamp: 0 },
+          {
+            role: "assistant",
+            provider: "anthropic",
+            api: "anthropic-messages",
+            model: "claude-sonnet-5",
+            stopReason: "stop",
+            timestamp: 0,
+            content: [
+              {
+                type: "thinking",
+                thinking: "model-bound thought",
+                thinkingSignature: "sig_model_bound",
+              },
+              { type: "text", text: "visible answer" },
+            ],
+          },
+          { role: "user", content: "continue", timestamp: 0 },
+        ],
+      } as Context,
+      {
+        apiKey: "sk-ant-provider",
+        onPayload: (payload) => {
+          capturedPayload = payload;
+        },
+      },
+    );
+
+    await stream.result();
+
+    const payload = capturedPayload as { messages: Array<{ role: string; content: unknown[] }> };
+    const assistantMessage = payload.messages.find((message) => message.role === "assistant");
+    expect(assistantMessage?.content).toEqual([{ type: "text", text: "visible answer" }]);
+    expect(JSON.stringify(assistantMessage)).not.toContain("sig_model_bound");
+  });
+
   it.each([
     { reasoning: "xhigh", expectedEffort: "high" },
     { reasoning: "max", expectedEffort: "max" },
@@ -1395,6 +1457,148 @@ describe("Anthropic provider", () => {
       output_config: { effort: "high" },
     });
     expect(capturedPayload).not.toHaveProperty("temperature");
+  });
+
+  it("applies the Claude Sonnet 5 default request contract after payload hooks", async () => {
+    let requestPayload: Record<string, unknown> | undefined;
+    const client = {
+      messages: {
+        create: vi.fn((params: Record<string, unknown>) => {
+          requestPayload = params;
+          return {
+            asResponse: () =>
+              Promise.resolve(
+                createSseResponse([
+                  {
+                    type: "message_start",
+                    message: {
+                      id: "msg_1",
+                      model: "claude-sonnet-5",
+                      usage: { input_tokens: 1, output_tokens: 0 },
+                    },
+                  },
+                  {
+                    type: "message_delta",
+                    delta: { stop_reason: "end_turn" },
+                    usage: { output_tokens: 1 },
+                  },
+                  { type: "message_stop" },
+                ]),
+              ),
+          };
+        }),
+      },
+    };
+    const stream = streamAnthropic(
+      makeAnthropicModel({
+        id: "claude-sonnet-5",
+        name: "Claude Sonnet 5",
+        maxTokens: 128_000,
+      }),
+      {
+        messages: [{ role: "user", content: "Use a tool.", timestamp: 0 }],
+        tools: [
+          {
+            name: "lookup",
+            description: "Lookup",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      },
+      {
+        apiKey: "sk-ant-provider",
+        client: client as never,
+        temperature: 0.2,
+        toolChoice: "any",
+        onPayload: (payload) => ({
+          ...(payload as Record<string, unknown>),
+          top_p: 0.9,
+          top_k: 40,
+          service_tier: "auto",
+        }),
+      },
+    );
+
+    await stream.result();
+
+    expect(requestPayload).toMatchObject({ tool_choice: { type: "auto" } });
+    expect(requestPayload).not.toHaveProperty("thinking");
+    expect(requestPayload).not.toHaveProperty("output_config");
+    expect(requestPayload).not.toHaveProperty("temperature");
+    expect(requestPayload).not.toHaveProperty("top_p");
+    expect(requestPayload).not.toHaveProperty("top_k");
+    expect(requestPayload).not.toHaveProperty("service_tier");
+  });
+
+  it.each([
+    { reasoning: "low", thinking: { type: "adaptive", display: "summarized" }, effort: "low" },
+    { reasoning: "xhigh", thinking: { type: "adaptive", display: "summarized" }, effort: "xhigh" },
+    { reasoning: "off", thinking: { type: "disabled" }, effort: undefined },
+  ] as const)(
+    "maps Claude Sonnet 5 $reasoning reasoning",
+    async ({ reasoning, thinking, effort }) => {
+      let capturedPayload: unknown;
+      const stream = streamSimpleAnthropic(
+        makeAnthropicModel({
+          id: "claude-sonnet-5",
+          name: "Claude Sonnet 5",
+          maxTokens: 128_000,
+        }),
+        { messages: [{ role: "user", content: "hello", timestamp: 0 }] },
+        {
+          apiKey: "sk-ant-provider",
+          reasoning,
+          onPayload: (payload) => {
+            capturedPayload = payload;
+            throw new Error("stop before network");
+          },
+        },
+      );
+
+      await stream.result();
+
+      expect(capturedPayload).toMatchObject({ thinking });
+      expect((capturedPayload as { output_config?: unknown }).output_config).toEqual(
+        effort ? { effort } : undefined,
+      );
+    },
+  );
+
+  it("preserves forced Claude Sonnet 5 tool choice when thinking is disabled", async () => {
+    let capturedPayload: unknown;
+    const stream = streamAnthropic(
+      makeAnthropicModel({
+        id: "claude-sonnet-5",
+        name: "Claude Sonnet 5",
+        maxTokens: 128_000,
+      }),
+      {
+        messages: [{ role: "user", content: "Use a tool.", timestamp: 0 }],
+        tools: [
+          {
+            name: "lookup",
+            description: "Lookup",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      },
+      {
+        apiKey: "sk-ant-provider",
+        thinkingEnabled: false,
+        toolChoice: "any",
+        onPayload: (payload) => {
+          capturedPayload = payload;
+          throw new Error("stop before network");
+        },
+      },
+    );
+
+    await stream.result();
+
+    expect(capturedPayload).toMatchObject({
+      thinking: { type: "disabled" },
+      tool_choice: { type: "any" },
+    });
   });
 
   it("preserves native max effort for Claude Mythos Preview", async () => {
@@ -1621,7 +1825,7 @@ describe("Anthropic provider", () => {
       },
       {
         apiKey: "sk-ant-provider",
-        thinkingEnabled: true,
+        thinkingEnabled: false,
         effort: "high",
         toolChoice: "any",
         onPayload: (payload) => {

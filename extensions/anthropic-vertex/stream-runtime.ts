@@ -54,6 +54,10 @@ function isClaudeFable5Model(modelId: string): boolean {
   return resolveClaudeFable5ModelIdentity({ id: modelId }) !== undefined;
 }
 
+function isClaudeSonnet5Model(modelId: string): boolean {
+  return /(?:^|-)claude-sonnet-5(?=$|[^a-z0-9])/.test(resolveClaudeModelIdentity({ id: modelId }));
+}
+
 function isClaudeMythos5Model(modelId: string): boolean {
   return /(?:^|-)claude-mythos-5(?=$|[^a-z0-9])/.test(resolveClaudeModelIdentity({ id: modelId }));
 }
@@ -149,14 +153,19 @@ export function createAnthropicVertexStreamFn(
     });
     const contractModelId = resolveClaudeModelIdentity(model);
     const fable5 = isClaudeFable5Model(contractModelId);
+    const sonnet5 = isClaudeSonnet5Model(contractModelId);
     const mandatoryAdaptiveThinking = fable5 || isClaudeMythos5Model(contractModelId);
+    const disableThinking = !mandatoryAdaptiveThinking && options?.reasoning === "off";
     const reasoning =
       (options?.reasoning as ModelThinkingLevel | undefined) ??
       (mandatoryAdaptiveThinking ? "high" : undefined);
     const adaptiveThinking =
-      mandatoryAdaptiveThinking || Boolean(reasoning && supportsAdaptiveThinking(contractModelId));
+      !disableThinking &&
+      (mandatoryAdaptiveThinking ||
+        Boolean(reasoning && supportsAdaptiveThinking(contractModelId)));
     const temperature =
       adaptiveThinking ||
+      sonnet5 ||
       isClaudeOpus47OrNewerModel(contractModelId) ||
       isClaudeMythos5Model(contractModelId)
         ? undefined
@@ -177,7 +186,9 @@ export function createAnthropicVertexStreamFn(
       metadata: options?.metadata,
     };
 
-    if (reasoning) {
+    if (disableThinking) {
+      opts.thinkingEnabled = false;
+    } else if (reasoning) {
       if (supportsAdaptiveThinking(contractModelId)) {
         opts.thinkingEnabled = true;
         opts.effort = mapAnthropicAdaptiveEffort(
@@ -196,7 +207,7 @@ export function createAnthropicVertexStreamFn(
     } else if (fable5) {
       opts.thinkingEnabled = true;
       opts.effort = "high";
-    } else {
+    } else if (!sonnet5) {
       opts.thinkingEnabled = false;
     }
 

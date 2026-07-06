@@ -1,4 +1,8 @@
 import { supportsOpenAIReasoningEffort } from "@openclaw/ai/internal/openai";
+import {
+  requiresClaudeMandatoryAdaptiveThinking,
+  resolveClaudeSonnet5ModelIdentity,
+} from "@openclaw/llm-core";
 /**
  * Simple completion runtime preparation.
  *
@@ -362,7 +366,7 @@ export async function completeWithPreparedSimpleCompletionModel(params: {
 }): Promise<AssistantMessage> {
   const completionModel = prepareModelForSimpleCompletion({ model: params.model, cfg: params.cfg });
   const { reasoning: rawReasoning, ...options } = params.options ?? {};
-  const reasoning = normalizeSimpleCompletionReasoning(rawReasoning, completionModel);
+  const reasoning = normalizeSimpleCompletionReasoning(rawReasoning, params.model);
   return await completeSimple(completionModel, params.context, {
     ...options,
     ...(reasoning ? { reasoning } : {}),
@@ -373,11 +377,16 @@ export async function completeWithPreparedSimpleCompletionModel(params: {
 function normalizeSimpleCompletionReasoning(
   reasoning: SimpleCompletionModelOptions["reasoning"],
   model: Model,
-): SimpleCompletionThinkingLevel | undefined {
+): SimpleCompletionThinkingLevel | "off" | undefined {
   switch (reasoning) {
     case undefined:
-    case "off":
       return undefined;
+    case "off":
+      return (model.api === "anthropic-messages" || model.api === "bedrock-converse-stream") &&
+        (resolveClaudeSonnet5ModelIdentity(model) !== undefined ||
+          requiresClaudeMandatoryAdaptiveThinking(model))
+        ? "off"
+        : undefined;
     case "adaptive":
       return "medium";
     case "max":

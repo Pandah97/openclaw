@@ -1253,9 +1253,13 @@ describe("anthropic transport stream", () => {
     expect(result.errorMessage).toBe("OpenClaw transport error: malformed_streaming_fragment");
   });
 
-  it.each(["anthropic", "anthropic-vertex"])(
-    "surfaces structured Anthropic streaming refusals for %s",
-    async (provider) => {
+  it.each([
+    { provider: "anthropic", id: "claude-fable-5", name: "Claude Fable 5" },
+    { provider: "anthropic-vertex", id: "claude-fable-5", name: "Claude Fable 5" },
+    { provider: "anthropic", id: "claude-sonnet-5", name: "Claude Sonnet 5" },
+  ])(
+    "surfaces structured Anthropic streaming refusals for $provider/$id",
+    async ({ provider, id, name }) => {
       guardedFetchMock.mockResolvedValueOnce(
         createSseResponse([
           {
@@ -1293,8 +1297,8 @@ describe("anthropic transport stream", () => {
       const stream = await Promise.resolve(
         streamFn(
           makeAnthropicTransportModel({
-            id: "claude-fable-5",
-            name: "Claude Fable 5",
+            id,
+            name,
             provider,
           }),
           { messages: [{ role: "user", content: "hello" }] } as AnthropicStreamContext,
@@ -3435,6 +3439,7 @@ describe("anthropic transport stream", () => {
       } as AnthropicStreamContext,
       {
         apiKey: "sk-ant-api",
+        thinkingEnabled: false,
         temperature: 0.2,
         toolChoice: { type: "tool", name: "read_file" },
       } as AnthropicStreamOptions,
@@ -3446,6 +3451,102 @@ describe("anthropic transport stream", () => {
     expect(payload.tool_choice).toEqual({ type: "auto" });
     expect(payload).not.toHaveProperty("temperature");
     expect(result.responseModel).toBe("claude-fable-5");
+  });
+
+  it("applies the Claude Sonnet 5 default request contract after payload hooks", async () => {
+    await runTransportStream(
+      makeAnthropicTransportModel({
+        id: "claude-sonnet-5",
+        name: "Claude Sonnet 5",
+        maxTokens: 128_000,
+      }),
+      {
+        messages: [{ role: "user", content: "Use a tool.", timestamp: 0 }],
+        tools: [
+          {
+            name: "lookup",
+            description: "Lookup",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      } as AnthropicStreamContext,
+      {
+        apiKey: "sk-ant-api",
+        temperature: 0.2,
+        toolChoice: "any",
+        onPayload: (payload) => ({
+          ...(payload as Record<string, unknown>),
+          top_p: 0.9,
+          top_k: 40,
+          service_tier: "auto",
+        }),
+      } as AnthropicStreamOptions,
+    );
+
+    const payload = latestAnthropicRequest().payload;
+    expect(payload.tool_choice).toEqual({ type: "auto" });
+    expect(payload).not.toHaveProperty("thinking");
+    expect(payload).not.toHaveProperty("output_config");
+    expect(payload).not.toHaveProperty("temperature");
+    expect(payload).not.toHaveProperty("top_p");
+    expect(payload).not.toHaveProperty("top_k");
+    expect(payload).not.toHaveProperty("service_tier");
+  });
+
+  it.each([
+    { reasoning: "low", thinking: { type: "adaptive", display: "summarized" }, effort: "low" },
+    { reasoning: "xhigh", thinking: { type: "adaptive", display: "summarized" }, effort: "xhigh" },
+    { reasoning: "off", thinking: { type: "disabled" }, effort: undefined },
+  ] as const)(
+    "maps Claude Sonnet 5 $reasoning reasoning in transport runs",
+    async ({ reasoning, thinking, effort }) => {
+      await runTransportStream(
+        makeAnthropicTransportModel({
+          id: "claude-sonnet-5",
+          name: "Claude Sonnet 5",
+          maxTokens: 128_000,
+        }),
+        { messages: [{ role: "user", content: "hello" }] } as AnthropicStreamContext,
+        {
+          apiKey: "sk-ant-api",
+          reasoning,
+        } as AnthropicStreamOptions,
+      );
+
+      const payload = latestAnthropicRequest().payload;
+      expect(payload.thinking).toEqual(thinking);
+      expect(payload.output_config).toEqual(effort ? { effort } : undefined);
+    },
+  );
+
+  it("preserves forced Claude Sonnet 5 tool choice when thinking is disabled", async () => {
+    await runTransportStream(
+      makeAnthropicTransportModel({
+        id: "claude-sonnet-5",
+        name: "Claude Sonnet 5",
+        maxTokens: 128_000,
+      }),
+      {
+        messages: [{ role: "user", content: "Use a tool.", timestamp: 0 }],
+        tools: [
+          {
+            name: "lookup",
+            description: "Lookup",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      } as AnthropicStreamContext,
+      {
+        apiKey: "sk-ant-api",
+        reasoning: "off",
+        toolChoice: "any",
+      } as AnthropicStreamOptions,
+    );
+
+    expect(latestAnthropicRequest().payload).toMatchObject({
+      thinking: { type: "disabled" },
+      tool_choice: { type: "any" },
+    });
   });
 
   it("uses adaptive thinking for canonical Claude Mythos Preview transport aliases", async () => {

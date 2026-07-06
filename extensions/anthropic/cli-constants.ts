@@ -27,7 +27,6 @@ export const CLAUDE_CLI_MODEL_ALIASES: Record<string, string> = {
   sonnet: "sonnet",
   "sonnet-4.6": "claude-sonnet-4-6",
   "sonnet-5": "claude-sonnet-5",
-  "sonnet-5.0": "claude-sonnet-5",
   "claude-sonnet-4-6": "claude-sonnet-4-6",
   "claude-sonnet-5": "claude-sonnet-5",
   haiku: "haiku",

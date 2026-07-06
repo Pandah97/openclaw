@@ -393,6 +393,17 @@ function resolveSimpleBedrockOptions(
       reasoning,
     } satisfies BedrockOptions;
   }
+  if (options.reasoning === "off") {
+    const mandatoryAdaptiveThinking =
+      isAnthropicClaudeModel(model) && requiresMandatoryAdaptiveThinking(model);
+    return {
+      ...base,
+      ...(mandatoryAdaptiveThinking
+        ? { maxTokens: resolveAdaptiveBedrockMaxTokens(model, base.maxTokens) }
+        : {}),
+      reasoning: mandatoryAdaptiveThinking ? "low" : undefined,
+    } satisfies BedrockOptions;
+  }
 
   if (isAnthropicClaudeModel(model)) {
     if (supportsAdaptiveThinking(model)) {
@@ -1037,8 +1048,15 @@ function buildAdditionalModelRequestFields(
   model: Model<"bedrock-converse-stream">,
   options: BedrockOptions,
 ): DocumentType | undefined {
+  const reasoning =
+    options.reasoning === "off" &&
+    (usesClaudeFable5BedrockContract(model) ||
+      (isAnthropicClaudeModel(model) && requiresMandatoryAdaptiveThinking(model)))
+      ? "low"
+      : options.reasoning;
   if (
-    !options.reasoning ||
+    !reasoning ||
+    reasoning === "off" ||
     (!model.reasoning &&
       !usesClaudeFable5BedrockContract(model) &&
       !supportsAdaptiveThinking(model))
@@ -1055,7 +1073,7 @@ function buildAdditionalModelRequestFields(
     const result: Record<string, unknown> = supportsAdaptiveThinking(model)
       ? {
           thinking: { type: "adaptive", ...(display !== undefined ? { display } : {}) },
-          output_config: { effort: mapThinkingLevelToEffort(model, options.reasoning) },
+          output_config: { effort: mapThinkingLevelToEffort(model, reasoning) },
         }
       : (() => {
           const defaultBudgets: Record<ThinkingLevel, number> = {
@@ -1068,8 +1086,8 @@ function buildAdditionalModelRequestFields(
           };
 
           // Custom budgets override defaults (xhigh not in ThinkingBudgets, use high)
-          const level = options.reasoning === "xhigh" ? "high" : options.reasoning;
-          const budget = options.thinkingBudgets?.[level] ?? defaultBudgets[options.reasoning];
+          const level = reasoning === "xhigh" ? "high" : reasoning;
+          const budget = options.thinkingBudgets?.[level] ?? defaultBudgets[reasoning];
 
           return {
             thinking: {

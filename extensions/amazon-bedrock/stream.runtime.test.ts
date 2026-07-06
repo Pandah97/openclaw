@@ -179,6 +179,18 @@ describe("Bedrock thinking effort mapping", () => {
     expect(testing.buildAdditionalModelRequestFields(model, options)).toBeUndefined();
   });
 
+  it("preserves explicit off as disabled Bedrock thinking", () => {
+    const model = bedrockModel({
+      id: "anthropic.claude-sonnet-4-6-v1:0",
+      name: "Claude Sonnet 4.6",
+      reasoning: true,
+    });
+    const options = testing.resolveSimpleBedrockOptions(model, { reasoning: "off" });
+
+    expect(options.reasoning).toBeUndefined();
+    expect(testing.buildAdditionalModelRequestFields(model, options)).toBeUndefined();
+  });
+
   it("uses the model maxTokens cap for adaptive Claude thinking requests", () => {
     const model = bedrockModel({
       id: "us.anthropic.claude-opus-4-8",
@@ -244,6 +256,24 @@ describe("Bedrock thinking effort mapping", () => {
     expect(testing.buildAdditionalModelRequestFields(model, options)).toEqual({
       thinking: { type: "adaptive", display: "summarized" },
       output_config: { effort: "high" },
+    });
+  });
+
+  it("maps explicit off to low effort for Bedrock Mythos Preview", () => {
+    const model = bedrockModel({
+      id: "us.anthropic.claude-mythos-preview",
+      name: "US Claude Mythos Preview",
+      reasoning: true,
+      contextWindow: 1_000_000,
+      maxTokens: 128_000,
+    });
+    const options = testing.resolveSimpleBedrockOptions(model, { reasoning: "off" });
+
+    expect(options.reasoning).toBe("low");
+    expect(options.maxTokens).toBe(128_000);
+    expect(testing.buildAdditionalModelRequestFields(model, options)).toEqual({
+      thinking: { type: "adaptive", display: "summarized" },
+      output_config: { effort: "low" },
     });
   });
 
@@ -395,6 +425,25 @@ describe("Bedrock Fable contract", () => {
 
     const command = send.mock.calls[0]?.[0] as { input?: Record<string, unknown> };
     expect(command.input?.toolConfig).toBeUndefined();
+  });
+
+  it("maps explicit off to low effort for mandatory Fable thinking", async () => {
+    const send = vi.spyOn(BedrockRuntimeClient.prototype, "send").mockResolvedValue({
+      $metadata: { httpStatusCode: 200 },
+      stream: streamEvents([
+        { messageStart: { role: ConversationRole.ASSISTANT } },
+        { messageStop: { stopReason: "end_turn" } },
+      ]),
+    } as never);
+
+    const stream = streamSimpleBedrock(fableModel(), context(), { reasoning: "off" });
+    await stream.result();
+
+    const command = send.mock.calls[0]?.[0] as { input?: Record<string, unknown> };
+    expect(command.input?.additionalModelRequestFields).toEqual({
+      thinking: { type: "adaptive", display: "summarized" },
+      output_config: { effort: "low" },
+    });
   });
 
   it("quarantines partial output when Fable returns a terminal refusal", async () => {
