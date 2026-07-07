@@ -1,7 +1,8 @@
 // Signal tests cover daemon plugin behavior.
+import { EventEmitter } from "node:events";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { testApi } from "./daemon.js";
 
 describe("signal daemon args", () => {
@@ -44,5 +45,30 @@ describe("signal daemon log classification", () => {
   it("still surfaces signal-cli failures as errors", () => {
     expect(testApi.classifySignalCliLogLine("ERROR DaemonCommand - startup failed")).toBe("error");
     expect(testApi.classifySignalCliLogLine("SEVERE Manager - database exception")).toBe("error");
+  });
+});
+
+describe("bindSignalCliOutput", () => {
+  it("registers an error listener on the stream to prevent crash on broken pipe", () => {
+    const stream = new EventEmitter() as NodeJS.ReadableStream;
+    const onSpy = vi.spyOn(stream, "on");
+
+    testApi.bindSignalCliOutput({
+      stream,
+      log: vi.fn(),
+      error: vi.fn(),
+    });
+
+    expect(onSpy).toHaveBeenCalledWith("error", expect.any(Function));
+  });
+
+  it("does not throw when the stream emits an error", () => {
+    const stream = new EventEmitter() as NodeJS.ReadableStream;
+    const log = vi.fn();
+    const err = vi.fn();
+
+    testApi.bindSignalCliOutput({ stream, log, error: err });
+
+    expect(() => stream.emit("error", new Error("pipe broken"))).not.toThrow();
   });
 });

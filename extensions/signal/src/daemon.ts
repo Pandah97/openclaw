@@ -63,6 +63,9 @@ function bindSignalCliOutput(params: {
   log: (message: string) => void;
   error: (message: string) => void;
 }): void {
+  // ponytail: no-op error handler prevents Node crash on broken pipe.
+  // The stream is consumed fire-and-forget — there is nothing to reject.
+  params.stream?.on("error", () => {});
   params.stream?.on("data", (data) => {
     for (const line of data.toString().split(/\r?\n/)) {
       const kind = classifySignalCliLogLine(line);
@@ -178,4 +181,5 @@ export const testApi = {
   buildDaemonArgs,
   classifySignalCliLogLine,
   resolveSignalCliConfigPath,
+  bindSignalCliOutput,
 } as const;
