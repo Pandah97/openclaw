@@ -7,6 +7,7 @@ import officialExternalPluginCatalog from "../../scripts/lib/official-external-p
 import officialExternalProviderCatalog from "../../scripts/lib/official-external-provider-catalog.json" with { type: "json" };
 import { MANIFEST_KEY } from "../compat/legacy-names.js";
 import { normalizeClawHubSha256Integrity } from "../infra/clawhub.js";
+import { readResponseWithLimit } from "../infra/http-body.js";
 import { isRecord } from "../utils.js";
 import type {
   PluginManifestChannelConfig,
@@ -559,11 +560,11 @@ async function readHostedCatalogResponseText(params: {
 }): Promise<string> {
   parseHostedCatalogContentLength(params.response.headers.get("content-length"), params.maxBytes);
   if (!hasStreamingResponseBody(params.response)) {
-    const text = await params.response.text();
-    if (new TextEncoder().encode(text).byteLength > params.maxBytes) {
-      throw new Error(`hosted catalog feed exceeds ${params.maxBytes} bytes`);
-    }
-    return text;
+    const buffer = await readResponseWithLimit(params.response, params.maxBytes, {
+      chunkTimeoutMs: params.chunkTimeoutMs,
+      onOverflow: () => new Error(`hosted catalog feed exceeds ${params.maxBytes} bytes`),
+    });
+    return new TextDecoder().decode(buffer);
   }
   const reader = params.response.body.getReader();
   const chunks: Uint8Array[] = [];
