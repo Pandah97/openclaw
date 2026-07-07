@@ -248,7 +248,18 @@ async function writePluginCatalogsForModelsJson(params: {
       await ensureModelsFileModeForModelsJson(targetPath);
       continue;
     }
-    await fs.mkdir(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+    // Retry mkdir once on transient FsSafeError (directory changed during operation)
+    // which is a race with concurrent catalog refresh readdirSync on the same parent.
+    let mkErr: unknown;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await fs.mkdir(path.dirname(targetPath), { recursive: true, mode: 0o700 });
+        break;
+      } catch (e) {
+        mkErr = e;
+        if (attempt >= 2) throw mkErr;
+      }
+    }
     await writeModelsFileAtomicForModelsJson(targetPath, contents);
     await ensureModelsFileModeForModelsJson(targetPath);
     wrote = true;
