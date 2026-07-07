@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import officialExternalPluginCatalog from "../../scripts/lib/official-external-plugin-catalog.json" with { type: "json" };
+import { readResponseWithLimit } from "../infra/http-body.js";
 import { closeOpenClawStateDatabaseForTest } from "../state/openclaw-state-db.js";
 import { createSqliteHostedOfficialExternalPluginCatalogSnapshotStore } from "./official-external-plugin-catalog-snapshot-store.js";
 import {
@@ -1958,5 +1959,62 @@ describe("official external plugin catalog", () => {
       minHostVersion: ">=2026.4.10",
       allowInvalidConfigRecovery: true,
     });
+  });
+});
+
+describe("readHostedCatalogResponseText bounded read", () => {
+  it("returns hosted feed when response body is within maxBytes", async () => {
+    const result = await loadHostedOfficialExternalPluginCatalogEntries({
+      snapshotStore: null,
+      maxBytes: 4096,
+      fetchImpl: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              schemaVersion: 1,
+              id: "test",
+              generatedAt: "2026-01-01T00:00:00.000Z",
+              sequence: 1,
+              entries: [],
+            }),
+            { status: 200 },
+          ),
+      ),
+    });
+    expect(result.source).toBe("hosted");
+  });
+
+  it("falls back to bundled catalog when response body exceeds maxBytes", async () => {
+    const result = await loadHostedOfficialExternalPluginCatalogEntries({
+      snapshotStore: null,
+      maxBytes: 10,
+      fetchImpl: vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              schemaVersion: 1,
+              id: "test",
+              generatedAt: "2026-01-01T00:00:00.000Z",
+              sequence: 1,
+              entries: [],
+            }),
+            { status: 200 },
+          ),
+      ),
+    });
+    expect(result.source).toBe("bundled-fallback");
+    if (result.source === "bundled-fallback") {
+      expect(result.error).toContain("exceeds");
+    }
+  });
+
+  it("enforces maxBytes at the readResponseWithLimit layer before decoding", async () => {
+    let caughtError: string | undefined;
+    try {
+      await readResponseWithLimit(new Response("this is twenty bytes"), 10);
+    } catch (e: unknown) {
+      caughtError = e instanceof Error ? e.message : String(e);
+    }
+    expect(caughtError).toBe("Content too large: 20 bytes (limit: 10 bytes)");
   });
 });
