@@ -1,13 +1,22 @@
 // Ollama tests cover stream runtime plugin behavior.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { fetchWithSsrFGuardMock } = vi.hoisted(() => ({
+const { fetchWithSsrFGuardMock, ollamaStreamWarnMock } = vi.hoisted(() => ({
   fetchWithSsrFGuardMock: vi.fn(),
+  ollamaStreamWarnMock: vi.fn(),
 }));
 
 vi.mock("openclaw/plugin-sdk/ssrf-runtime", () => ({
   fetchWithSsrFGuard: fetchWithSsrFGuardMock,
 }));
+
+vi.mock("openclaw/plugin-sdk/runtime-env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/runtime-env")>();
+  return {
+    ...actual,
+    createSubsystemLogger: () => ({ warn: ollamaStreamWarnMock }),
+  };
+});
 
 import {
   OLLAMA_INCOMPLETE_STREAM_ERROR,
@@ -73,6 +82,7 @@ function expectIteratorEvent(
 
 afterEach(() => {
   fetchWithSsrFGuardMock.mockReset();
+  ollamaStreamWarnMock.mockReset();
 });
 
 describe("buildOllamaChatRequest", () => {
@@ -1433,9 +1443,12 @@ describe("buildAssistantMessage", () => {
 });
 
 // Helper: build a ReadableStreamDefaultReader from NDJSON lines
-function mockNdjsonReader(lines: string[]): ReadableStreamDefaultReader<Uint8Array> {
+function mockNdjsonReader(
+  lines: string[],
+  options: { trailingNewline?: boolean } = {},
+): ReadableStreamDefaultReader<Uint8Array> {
   const encoder = new TextEncoder();
-  const payload = lines.join("\n") + "\n";
+  const payload = lines.join("\n") + (options.trailingNewline === false ? "" : "\n");
   let consumed = false;
   return {
     read: async () => {
@@ -1466,6 +1479,32 @@ async function expectDoneEventContent(lines: string[], expectedContent: unknown)
 }
 
 describe("parseNdjsonStream", () => {
+  it("does not log a dangling surrogate for a malformed complete line", async () => {
+    const prefix = "x".repeat(119);
+    const reader = mockNdjsonReader([`${prefix}😀tail`]);
+
+    for await (const _chunk of parseNdjsonStream(reader)) {
+      throw new Error("expected malformed line to be skipped");
+    }
+
+    expect(ollamaStreamWarnMock).toHaveBeenCalledExactlyOnceWith(
+      `Skipping malformed NDJSON line: ${prefix}`,
+    );
+  });
+
+  it("does not log a dangling surrogate for malformed trailing data", async () => {
+    const prefix = "x".repeat(119);
+    const reader = mockNdjsonReader([`${prefix}😀tail`], { trailingNewline: false });
+
+    for await (const _chunk of parseNdjsonStream(reader)) {
+      throw new Error("expected malformed trailing data to be skipped");
+    }
+
+    expect(ollamaStreamWarnMock).toHaveBeenCalledExactlyOnceWith(
+      `Skipping malformed trailing data: ${prefix}`,
+    );
+  });
+
   it("parses text-only streaming chunks", async () => {
     const reader = mockNdjsonReader([
       '{"model":"m","created_at":"t","message":{"role":"assistant","content":"Hello"},"done":false}',
