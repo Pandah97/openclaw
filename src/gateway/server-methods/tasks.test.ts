@@ -29,6 +29,7 @@ type TaskResponsePayload = {
   task?: Record<string, unknown>;
   found?: boolean;
   cancelled?: boolean;
+  nextCursor?: string;
 };
 
 let stateDir: string;
