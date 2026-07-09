@@ -1478,14 +1478,20 @@ async function expectDoneEventContent(lines: string[], expectedContent: unknown)
   });
 }
 
+async function expectNoParsedChunks(reader: ReadableStreamDefaultReader<Uint8Array>) {
+  const chunks = [];
+  for await (const chunk of parseNdjsonStream(reader)) {
+    chunks.push(chunk);
+  }
+  expect(chunks).toEqual([]);
+}
+
 describe("parseNdjsonStream", () => {
   it("does not log a dangling surrogate for a malformed complete line", async () => {
     const prefix = "x".repeat(119);
     const reader = mockNdjsonReader([`${prefix}😀tail`]);
 
-    for await (const _chunk of parseNdjsonStream(reader)) {
-      throw new Error("expected malformed line to be skipped");
-    }
+    await expectNoParsedChunks(reader);
 
     expect(ollamaStreamWarnMock).toHaveBeenCalledExactlyOnceWith(
       `Skipping malformed NDJSON line: ${prefix}`,
@@ -1496,9 +1502,7 @@ describe("parseNdjsonStream", () => {
     const prefix = "x".repeat(119);
     const reader = mockNdjsonReader([`${prefix}😀tail`], { trailingNewline: false });
 
-    for await (const _chunk of parseNdjsonStream(reader)) {
-      throw new Error("expected malformed trailing data to be skipped");
-    }
+    await expectNoParsedChunks(reader);
 
     expect(ollamaStreamWarnMock).toHaveBeenCalledExactlyOnceWith(
       `Skipping malformed trailing data: ${prefix}`,
