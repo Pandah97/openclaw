@@ -272,6 +272,10 @@ function buildMatrixStreamingPreviewFinalText(prefix: string) {
   ].join(" ");
 }
 
+function truncateMatrixQaArtifactPreview(value: string | undefined) {
+  return value === undefined ? undefined : truncateUtf16Safe(value, 200);
+}
+
 async function runMatrixStreamingPreviewScenario(
   context: MatrixQaScenarioContext,
   params: {
@@ -348,12 +352,8 @@ async function runMatrixStreamingPreviewScenario(
   return {
     artifacts: {
       driverEventId,
-      previewFormattedBodyPreview: preview.event.formattedBody
-        ? truncateUtf16Safe(preview.event.formattedBody, 200)
-        : undefined,
-      previewBodyPreview: preview.event.body
-        ? truncateUtf16Safe(preview.event.body, 200)
-        : undefined,
+      previewFormattedBodyPreview: truncateMatrixQaArtifactPreview(preview.event.formattedBody),
+      previewBodyPreview: truncateMatrixQaArtifactPreview(preview.event.body),
       previewEventId: preview.event.eventId,
       previewMentions: preview.event.mentions,
       reply: finalReply,
@@ -677,13 +677,11 @@ async function runMatrixToolProgressScenario(
       return {
         artifacts: {
           driverEventId,
-          previewBodyPreview: progressAfterFinal.event.body
-            ? truncateUtf16Safe(progressAfterFinal.event.body, 200)
-            : undefined,
+          previewBodyPreview: truncateMatrixQaArtifactPreview(progressAfterFinal.event.body),
           previewEventId: progressPreviewEventId,
-          previewFormattedBodyPreview: progressAfterFinal.event.formattedBody
-            ? truncateUtf16Safe(progressAfterFinal.event.formattedBody, 200)
-            : undefined,
+          previewFormattedBodyPreview: truncateMatrixQaArtifactPreview(
+            progressAfterFinal.event.formattedBody,
+          ),
           previewMentions: progressAfterFinal.event.mentions,
           reply: finalReply,
           token: params.finalText,
@@ -845,13 +843,9 @@ async function runMatrixToolProgressScenario(
   return {
     artifacts: {
       driverEventId,
-      previewBodyPreview: progress.event.body
-        ? truncateUtf16Safe(progress.event.body, 200)
-        : undefined,
+      previewBodyPreview: truncateMatrixQaArtifactPreview(progress.event.body),
       previewEventId: previewRootEventId,
-      previewFormattedBodyPreview: progress.event.formattedBody
-        ? truncateUtf16Safe(progress.event.formattedBody, 200)
-        : undefined,
+      previewFormattedBodyPreview: truncateMatrixQaArtifactPreview(progress.event.formattedBody),
       previewMentions: progress.event.mentions,
       reply: finalReply,
       token: params.finalText,
