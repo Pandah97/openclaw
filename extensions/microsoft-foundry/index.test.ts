@@ -1841,7 +1841,9 @@ describe("microsoft-foundry plugin", () => {
       ) => callback(new Error("az failed"), "", `${prefix}😀tail`),
     );
 
-    await expect(getAccessTokenResultAsync()).rejects.toThrow(`az failed: ${prefix}`);
+    await expect(getAccessTokenResultAsync()).rejects.toMatchObject({
+      message: `az failed: ${prefix}`,
+    });
   });
 
   it("deletes legacy provider-level secret refs", () => {
