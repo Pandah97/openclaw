@@ -17,7 +17,7 @@ import {
   hasPersistedIMessageEcho,
   resetPersistedIMessageEchoCacheForTest,
 } from "./monitor/persisted-echo-cache.js";
-import { sendMessageIMessage } from "./send.js";
+import { sanitizeReplyToId, sendMessageIMessage } from "./send.js";
 import { installIMessageStateRuntimeForTest } from "./test-support/runtime.js";
 
 const IMESSAGE_TEST_CFG = {
@@ -1337,5 +1337,18 @@ describe("sendMessageIMessage CLI stream errors", () => {
       }),
     ).rejects.toThrow("iMessage CLI stderr stream error: stderr pipe broken");
     expect(kill).toHaveBeenCalledWith("SIGKILL");
+  });
+});
+
+describe("sanitizeReplyToId surrogate pair boundary", () => {
+  it("does not split surrogate pairs at the 256-unit truncation boundary", () => {
+    // 255 ASCII chars + emoji lands surrogate pair at position 256
+    const id = "a".repeat(255) + "\u{1F600}";
+    const result = sanitizeReplyToId(id);
+    expect(result).toBeDefined();
+    expect(result!.length).toBeLessThanOrEqual(256);
+    // No dangling surrogate at the truncation boundary
+    const lastCu = result!.charCodeAt(result!.length - 1);
+    expect(lastCu < 0xd800 || lastCu > 0xdfff).toBe(true);
   });
 });

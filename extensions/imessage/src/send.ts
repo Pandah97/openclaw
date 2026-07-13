@@ -193,7 +193,7 @@ function stripUnsafeReplyTagChars(value: string): string {
   return next;
 }
 
-function sanitizeReplyToId(rawReplyToId?: string): string | undefined {
+export function sanitizeReplyToId(rawReplyToId?: string): string | undefined {
   const trimmed = rawReplyToId?.trim();
   if (!trimmed) {
     return undefined;
