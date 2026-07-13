@@ -38,9 +38,11 @@ function buildProps(result: SessionsListResult): SessionsProps {
     includeGlobal: false,
     includeUnknown: false,
     showArchived: false,
-    mainKey: "main",
     basePath: "",
     searchQuery: "",
+    transcriptSearchAvailable: true,
+    transcriptSearchQuery: "",
+    transcriptSearch: { status: "idle" },
     agentIdentityById: {},
     sortColumn: "updated",
     sortDir: "desc",
@@ -49,6 +51,7 @@ function buildProps(result: SessionsListResult): SessionsProps {
     page: 0,
     pageSize: 10,
     selectedKeys: new Set<string>(),
+    sessionMenu: null,
     expandedSessionKey: null,
     checkpointItemsByKey: {},
     checkpointLoadingKey: null,
@@ -57,6 +60,9 @@ function buildProps(result: SessionsListResult): SessionsProps {
     onFiltersChange: () => undefined,
     onClearFilters: () => undefined,
     onSearchChange: () => undefined,
+    onTranscriptSearchChange: () => undefined,
+    onTranscriptSearch: () => undefined,
+    onClearTranscriptSearch: () => undefined,
     onSortChange: () => undefined,
     onGroupByChange: () => undefined,
     onAssignCategory: () => undefined,
@@ -70,7 +76,7 @@ function buildProps(result: SessionsListResult): SessionsProps {
     onDeselectPage: () => undefined,
     onDeselectAll: () => undefined,
     onDeleteSelected: () => undefined,
-    onFork: () => undefined,
+    onOpenSessionMenu: () => undefined,
     onToggleDetails: () => undefined,
     onBranchFromCheckpoint: () => undefined,
     onRestoreCheckpoint: () => undefined,
@@ -90,18 +96,122 @@ function sessionTableHeaders(container: HTMLElement): Array<string | undefined> 
   return Array.from(container.querySelectorAll("thead th")).map((cell) => cell.textContent?.trim());
 }
 
-const SESSION_TABLE_HEADERS = [
-  "",
-  "Key",
-  "Kind",
-  "Status",
-  "Runtime",
-  "Updated",
-  "Tokens",
-  "Actions",
-];
+const SESSION_TABLE_HEADERS = ["", "Key", "Kind", "Status", "Updated", "Tokens", "Actions"];
 
 describe("sessions view", () => {
+  it("keeps transcript search distinct from the loaded-roster filter", async () => {
+    const container = document.createElement("div");
+    const onTranscriptSearchChange = vi.fn();
+    const onTranscriptSearch = vi.fn();
+    render(
+      renderSessions({
+        ...buildProps(buildMultiResult([])),
+        searchQuery: "agent label",
+        transcriptSearchQuery: "  exact phrase  ",
+        onTranscriptSearchChange,
+        onTranscriptSearch,
+      }),
+      container,
+    );
+    await Promise.resolve();
+
+    const rosterFilter = container.querySelector<HTMLInputElement>(
+      '.sessions-filter-bar input[type="text"]',
+    );
+    const transcriptInput = container.querySelector<HTMLInputElement>(
+      '.sessions-transcript-search input[type="search"]',
+    );
+    expect(rosterFilter?.value).toBe("agent label");
+    expect(transcriptInput?.value).toBe("  exact phrase  ");
+
+    transcriptInput!.value = "different words";
+    transcriptInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(onTranscriptSearchChange).toHaveBeenCalledWith("different words");
+    expect(onTranscriptSearch).not.toHaveBeenCalled();
+
+    container
+      .querySelector(".sessions-transcript-search__form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    expect(onTranscriptSearch).toHaveBeenCalledOnce();
+  });
+
+  it("renders transcript provenance and opens the matching session", async () => {
+    const container = document.createElement("div");
+    const onNavigateToChat = vi.fn();
+    render(
+      renderSessions({
+        ...buildProps(
+          buildMultiResult([
+            {
+              key: "agent:main:launch",
+              kind: "direct",
+              label: "Launch planning",
+              updatedAt: Date.parse("2026-07-12T12:00:00.000Z"),
+            },
+          ]),
+        ),
+        transcriptSearchQuery: "launch code",
+        transcriptSearch: {
+          status: "results",
+          results: [
+            {
+              sessionKey: "agent:main:launch",
+              sessionId: "session-launch",
+              messageId: "message-1",
+              role: "assistant",
+              timestamp: Date.parse("2026-07-12T12:00:00.000Z"),
+              snippet: "The <launch code> is ready.",
+              score: 1,
+            },
+          ],
+          indexing: true,
+          truncated: true,
+        },
+        onNavigateToChat,
+      }),
+      container,
+    );
+    await Promise.resolve();
+
+    const result = container.querySelector<HTMLButtonElement>(
+      ".sessions-transcript-search__result",
+    );
+    expect(result?.textContent).toContain("Launch planning");
+    expect(result?.textContent).toContain("Assistant");
+    expect(result?.textContent).toContain("The <launch code> is ready.");
+    expect(result?.querySelector("launch")).toBeNull();
+    expect(container.textContent).toContain("The transcript index is still updating");
+    expect(container.textContent).toContain("Showing the first 25 matches.");
+
+    result?.click();
+    expect(onNavigateToChat).toHaveBeenCalledWith("agent:main:launch");
+  });
+
+  it("disables transcript search when the Gateway does not advertise it", async () => {
+    const container = document.createElement("div");
+    const onTranscriptSearch = vi.fn();
+    render(
+      renderSessions({
+        ...buildProps(buildMultiResult([])),
+        transcriptSearchAvailable: false,
+        transcriptSearchQuery: "hidden",
+        onTranscriptSearch,
+      }),
+      container,
+    );
+    await Promise.resolve();
+
+    expect(
+      container.querySelector<HTMLInputElement>('.sessions-transcript-search input[type="search"]')
+        ?.disabled,
+    ).toBe(true);
+    expect(container.textContent).toContain("Transcript search requires a newer Gateway.");
+    container
+      .querySelector(".sessions-transcript-search__form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    expect(onTranscriptSearch).not.toHaveBeenCalled();
+  });
+
   it("renders an explicit archived-session toggle", async () => {
     const container = document.createElement("div");
     const onFiltersChange = vi.fn();
@@ -235,9 +345,9 @@ describe("sessions view", () => {
     expect(onAssignCategory).toHaveBeenCalledWith("agent:main:main", "Research");
   });
 
-  it("offers workboard capture for dashboard sessions", async () => {
+  it("opens the session menu from the kebab and row context menu", async () => {
     const container = document.createElement("div");
-    const onAddToWorkboard = vi.fn();
+    const onOpenSessionMenu = vi.fn();
     const session = {
       key: "agent:main:dashboard:1",
       kind: "direct",
@@ -246,65 +356,45 @@ describe("sessions view", () => {
     render(
       renderSessions({
         ...buildProps(buildResult(session)),
-        onAddToWorkboard,
+        onOpenSessionMenu,
       }),
       container,
     );
     await Promise.resolve();
 
     const button = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Add to Workboard"]',
+      'button[aria-label="Open session menu"]',
     );
-    if (!(button instanceof HTMLButtonElement)) {
-      throw new Error("Expected Add to Workboard button");
+    if (!button) {
+      throw new Error("Expected session menu button");
     }
+    expect(button.getAttribute("aria-haspopup")).toBe("menu");
     button.click();
-
-    expect(onAddToWorkboard).toHaveBeenCalledWith(session);
-  });
-
-  it("pins, archives, and restores sessions from row actions", async () => {
-    const container = document.createElement("div");
-    const onPatch = vi.fn();
-    render(
-      renderSessions({
-        ...buildProps(
-          buildResult({
-            key: "agent:main:dashboard:1",
-            kind: "direct",
-            updatedAt: Date.now(),
-            pinned: false,
-            archived: false,
-          }),
-        ),
-        onPatch,
-      }),
-      container,
+    expect(onOpenSessionMenu).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ key: session.key }),
+      { x: expect.any(Number), y: expect.any(Number) },
+      button,
     );
-    await Promise.resolve();
 
-    container.querySelector<HTMLButtonElement>('button[title="Pin session"]')!.click();
-    container.querySelector<HTMLButtonElement>('button[title="Archive session"]')!.click();
-    expect(onPatch).toHaveBeenNthCalledWith(1, "agent:main:dashboard:1", { pinned: true });
-    expect(onPatch).toHaveBeenNthCalledWith(2, "agent:main:dashboard:1", { archived: true });
-
-    render(
-      renderSessions({
-        ...buildProps(
-          buildResult({
-            key: "agent:main:dashboard:1",
-            kind: "direct",
-            updatedAt: Date.now(),
-            archived: true,
-          }),
-        ),
-        onPatch,
-      }),
-      container,
+    const row = container.querySelector(".session-data-row");
+    if (!row) {
+      throw new Error("Expected session row");
+    }
+    const contextMenu = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 123,
+      clientY: 45,
+    });
+    row.dispatchEvent(contextMenu);
+    expect(onOpenSessionMenu).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ key: session.key }),
+      { x: 123, y: 45 },
+      null,
     );
-    await Promise.resolve();
-    container.querySelector<HTMLButtonElement>('button[title="Restore session"]')!.click();
-    expect(onPatch).toHaveBeenLastCalledWith("agent:main:dashboard:1", { archived: false });
+    expect(contextMenu.defaultPrevented).toBe(true);
   });
 
   it("keeps pinned sessions above newer unpinned sessions", async () => {
@@ -326,27 +416,6 @@ describe("sessions view", () => {
       row.querySelector(".session-key-cell")?.textContent?.trim(),
     );
     expect(keys).toEqual(["pinned", "newer"]);
-  });
-
-  it("marks sessions that already have workboard cards", async () => {
-    const container = document.createElement("div");
-    render(
-      renderSessions({
-        ...buildProps(
-          buildResult({
-            key: "agent:main:dashboard:1",
-            kind: "direct",
-            updatedAt: Date.now(),
-          }),
-        ),
-        workboardSessionKeys: new Set(["agent:main:dashboard:1"]),
-        onAddToWorkboard: () => undefined,
-      }),
-      container,
-    );
-    await Promise.resolve();
-
-    expect(container.querySelector('button[aria-label="Open Workboard card"]')).not.toBeNull();
   });
 
   it("uses the shared tooltip component for session filters", async () => {
@@ -742,7 +811,7 @@ describe("sessions view", () => {
     expect(container.querySelectorAll("tbody tr")).toHaveLength(1);
   });
 
-  it("renders and filters the session runtime", async () => {
+  it("filters by agent runtime and surfaces it in the details drawer", async () => {
     const container = document.createElement("div");
     render(
       renderSessions({
@@ -763,20 +832,22 @@ describe("sessions view", () => {
           ]),
         ),
         searchQuery: "fallback none",
+        expandedSessionKey: "agent:main:claude",
       }),
       container,
     );
     await Promise.resolve();
 
     expect(sessionTableHeaders(container)).toEqual(SESSION_TABLE_HEADERS);
-    expect(container.querySelector(".session-runtime-cell")?.textContent?.trim()).toBe(
-      "claude-cli (fallback none)",
-    );
+    // The roster no longer has a Runtime column; the drawer carries it.
+    expect(container.querySelector(".session-runtime-cell")).toBeNull();
     const rows = container.querySelectorAll("tbody tr.session-data-row");
     expect(rows).toHaveLength(1);
     expect(rows[0]?.querySelector(".session-key-cell")?.textContent?.trim()).toBe(
       "agent:main:claude",
     );
+    const stats = readSessionDetailStats(container);
+    expect(stats.get("Runtime")).toBe("claude-cli (fallback none)");
   });
 
   it("does not filter terminal sessions as live when active-run flags are stale", async () => {
@@ -998,7 +1069,8 @@ describe("sessions view", () => {
     expect(stats.get("Status")).toBe("running");
     expect(stats.get("Model")).toBe("gpt-5.5");
     expect(stats.get("Provider")).toBe("openai");
-    expect(stats.get("Runtime")).toBe("2m 5s");
+    expect(stats.get("Runtime")).toBe("pi");
+    expect(stats.get("Run duration")).toBe("2m 5s");
     expect(stats.get("Tokens")).toBe("123456 / 200000");
     expect(stats.get("Compaction")).toBe("1 Checkpoint");
     expect(stats.get("Goal")).toBe(
