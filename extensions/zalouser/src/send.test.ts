@@ -447,6 +447,54 @@ describe("zalouser send helpers", () => {
     expect(result.receipt.platformMessageIds).toStrictEqual([]);
   });
 
+  it("does not split surrogate pairs in hard-limit chunking", async () => {
+    // 1999 ASCII + emoji = position 2000 lands inside surrogate pair
+    mockSendText
+      .mockResolvedValueOnce(sendResult("mid-sp-1", "thread-sp"))
+      .mockResolvedValueOnce(sendResult("mid-sp-2", "thread-sp"));
+
+    await sendMessageZalouser("thread-sp", "a".repeat(1999) + "\u{1F600}" + "b".repeat(10), {
+      textChunkLimit: 2000,
+    });
+
+    expect(mockSendText).toHaveBeenCalledTimes(2);
+    // First chunk must not end with a dangling surrogate
+    const chunk1 = mockSendText.mock.calls[0][1] as string;
+    const lastCu = chunk1.charCodeAt(chunk1.length - 1);
+    expect(lastCu < 0xd800 || lastCu > 0xdfff).toBe(true);
+    expect(chunk1.length).toBeLessThanOrEqual(2000);
+    // Second chunk starts with the emoji (low surrogate)
+    const chunk2 = mockSendText.mock.calls[1][1] as string;
+    expect(chunk2.startsWith("\u{1F600}")).toBe(true);
+  });
+
+  it("does not split surrogate pairs at newline chunk boundaries", async () => {
+    // Text where paragraph break falls at the surrogate boundary
+    const emoji = "\u{1F600}";
+    const text = "a".repeat(1990) + emoji + "\n\nparagraph2";
+    mockSendText
+      .mockResolvedValueOnce(sendResult("mid-sp-nl-1", "thread-sp-nl"))
+      .mockResolvedValueOnce(sendResult("mid-sp-nl-2", "thread-sp-nl"));
+
+    await sendMessageZalouser("thread-sp-nl", text, {
+      textChunkLimit: 2000,
+      textChunkMode: "newline",
+    });
+
+    expect(mockSendText).toHaveBeenCalledTimes(2);
+    const fullText = mockSendText.mock.calls.map((call) => call[1] as string).join("");
+    // Full reconstruction must be intact
+    expect(fullText).toBe(text);
+    // No chunk may end with a dangling surrogate
+    for (const call of mockSendText.mock.calls) {
+      const chunk = call[1] as string;
+      if (chunk.length > 0) {
+        const cu = chunk.charCodeAt(chunk.length - 1);
+        expect(cu < 0xd800 || cu > 0xdfff).toBe(true);
+      }
+    }
+  });
+
   it("delegates delivered+seen helpers to JS transport", async () => {
     mockSendDelivered.mockResolvedValueOnce();
     mockSendSeen.mockResolvedValueOnce();

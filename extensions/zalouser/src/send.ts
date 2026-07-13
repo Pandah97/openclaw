@@ -300,7 +300,7 @@ function findLastBreak(
 
 function findLastWhitespaceBreak(text: string, start: number, end: number): number | undefined {
   for (let index = end - 1; index > start; index -= 1) {
-    if (/\s/.test(text.charAt(index))) {
+    if (/\s/.test(text[index])) {
       return index + 1;
     }
   }
