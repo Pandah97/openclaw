@@ -495,6 +495,18 @@ describe("zalouser send helpers", () => {
     }
   });
 
+  it("makes forward progress even with a one-unit limit and non-BMP text", async () => {
+    // limit=1 with emoji at start: guard must not prevent progress
+    mockSendText.mockResolvedValue(sendResult("mid-prog", "thread-prog"));
+
+    await sendMessageZalouser("thread-prog", "\u{1F600}a", {
+      textChunkLimit: 1,
+    });
+
+    // Must make progress (not hang) and send each code unit separately
+    expect(mockSendText.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("delegates delivered+seen helpers to JS transport", async () => {
     mockSendDelivered.mockResolvedValueOnce();
     mockSendSeen.mockResolvedValueOnce();
